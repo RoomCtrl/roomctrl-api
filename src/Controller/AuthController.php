@@ -60,6 +60,8 @@ class AuthController extends AbstractController
     )]
     public function loginCheck(): JsonResponse
     {
+        // This method is not actually called directly - authentication is handled by Lexik JWT
+        // The data validation is now done in CheckAuthenticationDataListener
         throw new LogicException('This method should never be called directly.');
     }
 }

@@ -3,6 +3,9 @@ nelmio_api_doc:
         info:
             title: RoomCtrl API
             version: 1.0.0
+            description: |
+                This is the versioned API documentation for RoomCtrl.
+                Current version: v1
         components:
             securitySchemes:
                 Bearer:

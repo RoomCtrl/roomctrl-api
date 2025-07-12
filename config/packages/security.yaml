@@ -5,12 +5,10 @@ security:
     
     # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
     providers:
-        # used to reload user from session & other features (e.g. switch_user)
         app_user_provider:
-            memory:
-                users:
-                    user: { password: '$2y$13$qGZeHIbQzL.JJNs/oV4qZe4BzYHopaboKbyzp.A0gxs15eGIEpZZm', roles: ['ROLE_USER'] }
-                    admin: { password: '$2y$13$PFbk/qQlFy27bQx1jSxHJO4v9UzIswA7/KsaivQ2gjYuqQJ5Pi1wG', roles: ['ROLE_ADMIN'] }
+            entity:
+                class: App\Entity\User
+                property: username
 
     firewalls:
         dev:

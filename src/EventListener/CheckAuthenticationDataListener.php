@@ -24,7 +24,7 @@ class CheckAuthenticationDataListener
         $request = $event->getRequest();
         
         // Check if this is the login route
-        if ($request->getPathInfo() !== '/api/login_check' || $request->getMethod() !== 'POST') {
+        if ($request->getPathInfo() !== '/api/v1/login_check' || $request->getMethod() !== 'POST') {
             return;
         }
 

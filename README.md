@@ -13,6 +13,7 @@
 - [🌐 Dostępne endpointy](#-dostępne-endpointy)
 - [📚 Dokumentacja API](#-dokumentacja-api)
 - [💻 Przydatne komendy](#-przydatne-komendy)
+- [🚀 Szybki start](#-szybki-start)
 
 ---
 
@@ -98,4 +99,50 @@ Dokumentacja API jest dostępna pod adresem `/api/doc` i zawiera:
 |---------|------|
 | `php bin/console app:import-database` | Wykonuje polecenia z pliku database.sql |
 | `php bin/console doctrine:migrations:diff` | Generuje nową migrację po zmianach w encjach |
-| `php bin/console doctrine:migrations:migrate` | Stosuje nowe migracje do bazy danych | 
+| `php bin/console doctrine:migrations:migrate` | Stosuje nowe migracje do bazy danych |
+
+---
+
+## 🚀 Szybki start
+
+1. **Sklonuj repozytorium i przejdź do katalogu projektu:**
+   ```bash
+   git clone <adres_repozytorium>
+   cd roomctrlApi
+   ```
+
+2. **Zainstaluj zależności:**
+   ```bash
+   composer install
+   ```
+
+3. **Skonfiguruj plik środowiskowy:**
+   Skopiuj plik `.env.example` do `.env` i w razie potrzeby dostosuj ustawienia bazy danych.
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Utwórz bazę danych:**
+   ```bash
+   php bin/console doctrine:database:create
+   ```
+
+5. **Wykonaj migracje (utworzenie tabel):**
+   ```bash
+   php bin/console doctrine:migrations:migrate
+   ```
+
+6. **(Opcjonalnie) Dodaj dane startowe do bazy:**
+   Jeśli chcesz zaimportować przykładowe dane z pliku `database.sql`, użyj komendy:
+   ```bash
+   php bin/console app:import-database
+   ```
+
+7. **Uruchom serwer deweloperski:**
+   ```bash
+   symfony server:start
+   # lub
+   php -S 127.0.0.1:8000 -t public
+   ```
+
+Aplikacja powinna być dostępna pod adresem http://127.0.0.1:8000

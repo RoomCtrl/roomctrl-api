@@ -2,13 +2,9 @@
 
 namespace App\EventListener;
 
-use Lexik\Bundle\JWTAuthenticationBundle\Event\JWTNotFoundEvent;
-use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationFailureEvent;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
-use Symfony\Component\Security\Core\Exception\BadCredentialsException;
 
 class CheckAuthenticationDataListener
 {
@@ -23,14 +19,12 @@ class CheckAuthenticationDataListener
     {
         $request = $event->getRequest();
         
-        // Check if this is the login route
-        if ($request->getPathInfo() !== '/api/login_check' || $request->getMethod() !== 'POST') {
+        if ($request->getPathInfo() !== '/api/v1/login_check' || $request->getMethod() !== 'POST') {
             return;
         }
 
         $data = json_decode($request->getContent(), true);
         
-        // Check if username and password are provided
         if (!isset($data['username']) || empty($data['username']) || !isset($data['password']) || empty($data['password'])) {
             $response = new JsonResponse([
                 'code' => 400,

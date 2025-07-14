@@ -109,8 +109,8 @@ class AuthController extends AbstractController
         ]);
     }
 
-    #[Route('/token_refresh', name: 'auth_token_refresh', methods: ['POST'])]
-    #[OA\Post(
+    #[Route('/token_refresh', name: 'auth_token_refresh', methods: ['GET'])]
+    #[OA\Get(
         path: '/api/v1/token_refresh',
         description: 'Creates a new JWT token using current authentication. The current token must be provided in the Authorization header.',
         summary: 'Refresh JWT token',

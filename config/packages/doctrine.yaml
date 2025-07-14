@@ -1,8 +1,7 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
-
-        server_version: '16'
+        server_version: '17'
 
         profiling_collect_backtrace: '%kernel.debug%'
         use_savepoints: true

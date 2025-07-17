@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{ subject }}</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            color: #1f1f1f;
+            margin: 0;
+            padding: 40px 0;
+        }
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #f7f7f7;
+            padding: 30px 20px 10px;
+            text-align: center;
+            border-bottom: 1px solid #e6e6e6;
+        }
+        .header h1 {
+            margin: 0;
+            color: #d72f3f;
+            font-size: 24px;
+        }
+        .content {
+            padding: 20px 30px;
+            font-size: 16px;
+            line-height: 1.6;
+            background-color: #ffffff;
+        }
+        .footer {
+            background-color: #1B2532;
+            color: #cccccc;
+            text-align: center;
+            font-size: 12px;
+            padding: 20px 30px;
+        }
+        a {
+            color: #d72f3f;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>{{ subject }}</h1>
+    </div>
+    <div class="content">
+        {{ content|raw }}
+    </div>
+    <div class="footer">
+        <p>This message was sent automatically. Please do not reply to this email.</p>
+        <p>&copy; 2025 RoomCtrl. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

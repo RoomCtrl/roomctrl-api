@@ -23,6 +23,14 @@ security:
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
         
+        send_mail:
+            pattern: ^/api/v1/send_mail
+            security: false
+
+        contact_mail:
+            pattern: ^/api/v1/contact_mail
+            security: false
+
         api:
             pattern: ^/api
             stateless: true
@@ -32,6 +40,8 @@ security:
     # Note: Only the *first* access control that matches will be used
     access_control:
         - { path: ^/api/v1/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/send_mail, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/contact_mail, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

@@ -5,6 +5,8 @@ namespace App\Controller\Api\V1;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\HttpFoundation\Request;
+use App\Service\UserService;
 use OpenApi\Attributes as OA;
 use LogicException;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
@@ -68,6 +70,15 @@ class AuthController extends AbstractController
         path: '/api/v1/me',
         summary: 'Get current authenticated user info',
         security: [['Bearer' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'withOrganization',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'boolean'),
+                description: 'If true, returns full organization data in response.'
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -77,9 +88,21 @@ class AuthController extends AbstractController
                         new OA\Property(property: 'id', type: 'integer'),
                         new OA\Property(property: 'username', type: 'string'),
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
-                        new OA\Property(property: 'firstName', type: 'string', nullable: true),
-                        new OA\Property(property: 'lastName', type: 'string', nullable: true),
+                        new OA\Property(property: 'firstName', type: 'string'),
+                        new OA\Property(property: 'lastName', type: 'string'),
                         new OA\Property(property: 'firstLogonStatus', type: 'boolean'),
+                        new OA\Property(
+                            property: 'organization',
+                            type: 'object',
+                            nullable: true,
+                            description: 'Organization details (present only if withOrganization=true)',
+                            properties: [
+                                new OA\Property(property: 'id', type: 'integer'),
+                                new OA\Property(property: 'regon', type: 'string'),
+                                new OA\Property(property: 'name', type: 'string'),
+                                new OA\Property(property: 'email', type: 'string'),
+                            ]
+                        )
                     ]
                 )
             ),
@@ -95,18 +118,12 @@ class AuthController extends AbstractController
             )
         ]
     )]
-    public function me(): JsonResponse
+    public function me(Request $request, UserService $userService): JsonResponse
     {
         $user = $this->getUser();
-
-        return $this->json([
-            'id' => $user->getId(),
-            'username' => $user->getUsername(),
-            'roles' => $user->getRoles(),
-            'firstName' => $user->getFirstName(),
-            'lastName' => $user->getLastName(),
-            'firstLogonStatus' => $user->isFirstLogonStatus(),
-        ]);
+        $withOrganization = filter_var($request->query->get('withOrganization', false), FILTER_VALIDATE_BOOLEAN);
+        $data = $userService->getUserInfo($user, $withOrganization);
+        return $this->json($data);
     }
 
     #[Route('/token_refresh', name: 'auth_token_refresh', methods: ['GET'])]

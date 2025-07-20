@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use App\Entity\Organization;
+use App\Entity\ContactDetail;
 
 #[ORM\Entity]
 #[ORM\Table(name: "users")]
@@ -37,6 +40,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'users')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Organization $organization = null;
+
+    #[ORM\OneToOne(targetEntity: ContactDetail::class, cascade: ['persist', 'remove'])]
+    #[ORM\JoinColumn(name: "contact_detail_id", referencedColumnName: "id", nullable: true)]
+    private ?ContactDetail $contactDetail = null;
 
     public function getId(): ?int
     {
@@ -131,6 +138,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setOrganization(?Organization $organization): self
     {
         $this->organization = $organization;
+        return $this;
+    }
+
+    public function getContactDetail(): ?ContactDetail
+    {
+        return $this->contactDetail;
+    }
+
+    public function setContactDetail(?ContactDetail $contactDetail): self
+    {
+        $this->contactDetail = $contactDetail;
         return $this;
     }
 

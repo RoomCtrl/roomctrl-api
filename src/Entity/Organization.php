@@ -91,7 +91,6 @@ class Organization
     public function removeUser(User $user): self
     {
         if ($this->users->removeElement($user)) {
-            // Set the owning side to null (unless already changed)
             if ($user->getOrganization() === $this) {
                 $user->setOrganization(null);
             }

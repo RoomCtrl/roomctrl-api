@@ -72,11 +72,11 @@ class AuthController extends AbstractController
         security: [['Bearer' => []]],
         parameters: [
             new OA\Parameter(
-                name: 'withOrganization',
+                name: 'withDetails',
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(type: 'boolean'),
-                description: 'If true, returns full organization data in response.'
+                description: 'If true, returns full organization and contact details data in response.'
             )
         ],
         responses: [
@@ -95,12 +95,28 @@ class AuthController extends AbstractController
                             property: 'organization',
                             type: 'object',
                             nullable: true,
-                            description: 'Organization details (present only if withOrganization=true)',
+                            description: 'Organization details (present only if withDetails=true)',
                             properties: [
                                 new OA\Property(property: 'id', type: 'integer'),
                                 new OA\Property(property: 'regon', type: 'string'),
                                 new OA\Property(property: 'name', type: 'string'),
                                 new OA\Property(property: 'email', type: 'string'),
+                            ]
+                        ),
+                        new OA\Property(
+                            property: 'contactDetail',
+                            type: 'object',
+                            nullable: true,
+                            description: 'Contact details (present only if withDetails=true)',
+                            properties: [
+                                new OA\Property(property: 'id', type: 'integer'),
+                                new OA\Property(property: 'streetName', type: 'string'),
+                                new OA\Property(property: 'streetNumber', type: 'string'),
+                                new OA\Property(property: 'flatNumber', type: 'string', nullable: true),
+                                new OA\Property(property: 'postCode', type: 'string'),
+                                new OA\Property(property: 'city', type: 'string'),
+                                new OA\Property(property: 'email', type: 'string'),
+                                new OA\Property(property: 'phone', type: 'string'),
                             ]
                         )
                     ]
@@ -121,8 +137,8 @@ class AuthController extends AbstractController
     public function me(Request $request, UserService $userService): JsonResponse
     {
         $user = $this->getUser();
-        $withOrganization = filter_var($request->query->get('withOrganization', false), FILTER_VALIDATE_BOOLEAN);
-        $data = $userService->getUserInfo($user, $withOrganization);
+        $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
+        $data = $userService->getUserInfo($user, $withDetails);
         return $this->json($data);
     }
 

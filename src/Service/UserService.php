@@ -4,35 +4,53 @@ namespace App\Service;
 
 class UserService
 {
-    public function getUserInfo($user, bool $withOrganization = false): array
+    public function getUserInfo($user, bool $withDetails = false): array
     {
-        if (!is_object($user) || !method_exists($user, 'getId')) {
-            return ['error' => 'User not found or invalid'];
+        $data = $this->getBasicUserData($user);
+
+        if ($withDetails) {
+            $this->addDetailedData($user, $data);
         }
 
-        $org = method_exists($user, 'getOrganization') ? $user->getOrganization() : null;
+        return $data;
+    }
 
-        $data = [
-            'id' => method_exists($user, 'getId') ? $user->getId() : null,
-            'username' => method_exists($user, 'getUsername') ? $user->getUsername() : null,
-            'roles' => method_exists($user, 'getRoles') ? $user->getRoles() : [],
-            'firstName' => method_exists($user, 'getFirstName') ? $user->getFirstName() : null,
-            'lastName' => method_exists($user, 'getLastName') ? $user->getLastName() : null,
-            'firstLogonStatus' => method_exists($user, 'isFirstLogonStatus') ? $user->isFirstLogonStatus() : null,
+    private function getBasicUserData($user): array
+    {
+        return [
+            'id' => $user->getId() ? $user->getId() : null,
+            'username' => $user->getUsername() ? $user->getUsername() : null,
+            'roles' => $user->getRoles() ? $user->getRoles() : [],
+            'firstName' => $user->getFirstName() ? $user->getFirstName() : null,
+            'lastName' => $user->getLastName() ? $user->getLastName() : null,
+            'firstLogonStatus' => $user->isFirstLogonStatus() ? $user->isFirstLogonStatus() : null,
         ];
+    }
 
-        if ($withOrganization && $org) {
-            $orgData = [];
-            foreach (get_class_methods($org) as $method) {
-                if (strpos($method, 'get') === 0 && $method !== 'getUsers') {
-                    $key = lcfirst(preg_replace('/^get/', '', $method));
-                    $value = $org->$method();
-                    $orgData[$key] = $value;
-                }
-            }
-            $data['organization'] = $orgData;
+    private function addDetailedData($user, array &$data): void
+    {
+        $org = $user->getOrganization() ? $user->getOrganization() : null;
+        $contactDetail = $user->getContactDetail() ? $user->getContactDetail() : null;
+
+        if ($org) {
+            $data['organization'] = $this->getEntityData($org, ['getUsers']);
         }
+        
+        if ($contactDetail) {
+            $data['contactDetail'] = $this->getEntityData($contactDetail, ['getUser']);
+        }
+    }
 
+    private function getEntityData($entity, array $excludeMethods = []): array
+    {
+        $data = [];
+        foreach (get_class_methods($entity) as $method) {
+            if (strpos($method, 'get') === 0 && !in_array($method, $excludeMethods)) {
+                $key = lcfirst(preg_replace('/^get/', '', $method));
+                $value = $entity->$method();
+                $data[$key] = $value;
+            }
+        }
         return $data;
     }
 }

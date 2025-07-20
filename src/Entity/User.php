@@ -5,6 +5,7 @@ namespace App\Entity;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use App\Entity\Organization;
 
 #[ORM\Entity]
 #[ORM\Table(name: "users")]
@@ -12,26 +13,30 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column]
-    private ?int $id = null;
-    
-    #[ORM\Column(length: 180, unique: true)]
+    #[ORM\Column(type: 'integer')]
+    private int $id;
+
+    #[ORM\Column(type: 'string', length: 180, unique: true)]
     private string $username;
     
     #[ORM\Column(type: 'json')]
     private array $roles = [];
     
-    #[ORM\Column]
+    #[ORM\Column(type: 'string')]
     private string $password;
     
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $firstName = null;
-    
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $lastName = null;
-    
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $firstName;
+
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $lastName;
+
     #[ORM\Column(type: 'boolean')]
     private bool $firstLogonStatus = true;
+
+    #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'users')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Organization $organization = null;
 
     public function getId(): ?int
     {
@@ -54,25 +59,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return (string) $this->username;
     }
-    
-    public function getFirstName(): ?string
+
+    public function getFirstName(): string
     {
         return $this->firstName;
     }
     
-    public function setFirstName(?string $firstName): self
+    public function setFirstName(string $firstName): self
     {
         $this->firstName = $firstName;
         
         return $this;
     }
-    
-    public function getLastName(): ?string
+
+    public function getLastName(): string
     {
         return $this->lastName;
     }
-    
-    public function setLastName(?string $lastName): self
+
+    public function setLastName(string $lastName): self
     {
         $this->lastName = $lastName;
         
@@ -115,6 +120,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->password = $password;
 
+        return $this;
+    }
+
+    public function getOrganization(): ?Organization
+    {
+        return $this->organization;
+    }
+
+    public function setOrganization(?Organization $organization): self
+    {
+        $this->organization = $organization;
         return $this;
     }
 

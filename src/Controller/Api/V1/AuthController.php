@@ -90,7 +90,7 @@ class AuthController extends AbstractController
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
                         new OA\Property(property: 'firstName', type: 'string'),
                         new OA\Property(property: 'lastName', type: 'string'),
-                        new OA\Property(property: 'firstLogonStatus', type: 'boolean'),
+                        new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
                         new OA\Property(
                             property: 'organization',
                             type: 'object',

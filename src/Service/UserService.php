@@ -18,12 +18,12 @@ class UserService
     private function getBasicUserData($user): array
     {
         return [
-            'id' => $user->getId() ? $user->getId() : null,
+            'id' => $user->getId() ? $user->getId()->toRfc4122() : null,
             'username' => $user->getUsername() ? $user->getUsername() : null,
             'roles' => $user->getRoles() ? $user->getRoles() : [],
             'firstName' => $user->getFirstName() ? $user->getFirstName() : null,
             'lastName' => $user->getLastName() ? $user->getLastName() : null,
-            'firstLogonStatus' => $user->isFirstLogonStatus() ? $user->isFirstLogonStatus() : null,
+            'firstLoginStatus' => $user->isFirstLoginStatus() ? $user->isFirstLoginStatus() : null,
         ];
     }
 

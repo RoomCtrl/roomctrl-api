@@ -23,6 +23,7 @@
         "symfony/runtime": "6.4.*",
         "symfony/twig-bundle": "6.4.*",
         "symfony/uid": "6.4.*",
+        "symfony/validator": "6.4.*",
         "symfony/yaml": "6.4.*",
         "twig/extra-bundle": "^2.12|^3.0",
         "twig/twig": "^2.12|^3.0"
@@ -76,6 +77,8 @@
         }
     },
     "require-dev": {
+        "doctrine/doctrine-fixtures-bundle": "^4.2",
+        "fakerphp/faker": "^1.24",
         "symfony/maker-bundle": "^1.64",
         "symfony/stopwatch": "6.4.*",
         "symfony/web-profiler-bundle": "6.4.*"

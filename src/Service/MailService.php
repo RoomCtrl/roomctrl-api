@@ -13,7 +13,7 @@ class MailService
     private Environment $twig;
     private string $contactEmail;
 
-    public function __construct(MailerInterface $mailer, Environment $twig, string $fromAddress = null)
+    public function __construct(MailerInterface $mailer, Environment $twig, ?string $fromAddress = null)
     {
         $this->mailer = $mailer;
         $this->twig = $twig;

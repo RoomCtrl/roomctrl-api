@@ -11,7 +11,6 @@ use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Uid\Uuid;
 use App\Entity\Organization;
-use App\Entity\ContactDetail;
 
 #[ORM\Entity]
 #[ORM\Table(name: "users")]
@@ -71,9 +70,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Assert\NotNull(message: 'Organization cannot be null.')]
     private ?Organization $organization = null;
 
-    #[ORM\OneToOne(targetEntity: ContactDetail::class, cascade: ['persist', 'remove'])]
-    #[ORM\JoinColumn(name: "contact_detail_id", referencedColumnName: "id", nullable: true)]
-    private ?ContactDetail $contactDetail = null;
+    #[ORM\Column(type: 'string', length: 100)]
+    #[Assert\NotBlank(message: 'Email cannot be blank.')]
+    #[Assert\Email(message: 'The email "{{ value }}" is not a valid email.')]
+    private string $email;
+
+    #[ORM\Column(type: 'string', length: 20)]
+    #[Assert\NotBlank(message: 'Phone cannot be blank.')]
+    private string $phone;
 
     public function getId(): ?Uuid
     {
@@ -171,14 +175,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getContactDetail(): ?ContactDetail
+    public function getEmail(): string
     {
-        return $this->contactDetail;
+        return $this->email;
     }
 
-    public function setContactDetail(?ContactDetail $contactDetail): self
+    public function setEmail(string $email): self
     {
-        $this->contactDetail = $contactDetail;
+        $this->email = $email;
+        return $this;
+    }
+
+    public function getPhone(): string
+    {
+        return $this->phone;
+    }
+
+    public function setPhone(string $phone): self
+    {
+        $this->phone = $phone;
         return $this;
     }
 

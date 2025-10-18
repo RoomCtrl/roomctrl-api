@@ -4,7 +4,6 @@ namespace App\Controller\Api\V1;
 
 use App\Entity\User;
 use App\Entity\Organization;
-use App\Entity\ContactDetail;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -44,7 +43,7 @@ class UserController extends AbstractController
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(type: 'boolean'),
-                description: 'Include organization and contact details'
+                description: 'Include organization details'
             )
         ],
         responses: [
@@ -59,10 +58,11 @@ class UserController extends AbstractController
                             new OA\Property(property: 'username', type: 'string'),
                             new OA\Property(property: 'firstName', type: 'string'),
                             new OA\Property(property: 'lastName', type: 'string'),
+                            new OA\Property(property: 'email', type: 'string'),
+                            new OA\Property(property: 'phone', type: 'string'),
                             new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
                             new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
-                            new OA\Property(property: 'organization', type: 'object', nullable: true),
-                            new OA\Property(property: 'contactDetail', type: 'object', nullable: true)
+                            new OA\Property(property: 'organization', type: 'object', nullable: true)
                         ]
                     )
                 )
@@ -109,7 +109,7 @@ class UserController extends AbstractController
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(type: 'boolean'),
-                description: 'Include organization and contact details'
+                description: 'Include organization details'
             )
         ],
         responses: [
@@ -122,10 +122,11 @@ class UserController extends AbstractController
                         new OA\Property(property: 'username', type: 'string'),
                         new OA\Property(property: 'firstName', type: 'string'),
                         new OA\Property(property: 'lastName', type: 'string'),
+                        new OA\Property(property: 'email', type: 'string'),
+                        new OA\Property(property: 'phone', type: 'string'),
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
                         new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
-                        new OA\Property(property: 'organization', type: 'object', nullable: true),
-                        new OA\Property(property: 'contactDetail', type: 'object', nullable: true)
+                        new OA\Property(property: 'organization', type: 'object', nullable: true)
                     ]
                 )
             ),
@@ -185,29 +186,17 @@ class UserController extends AbstractController
             description: 'User data',
             required: true,
             content: new OA\JsonContent(
-                required: ['username', 'password', 'firstName', 'lastName', 'organizationId'],
+                required: ['username', 'password', 'firstName', 'lastName', 'email', 'phone', 'organizationId'],
                 properties: [
                     new OA\Property(property: 'username', type: 'string', example: 'johndoe'),
                     new OA\Property(property: 'password', type: 'string', example: 'SecurePassword123'),
                     new OA\Property(property: 'firstName', type: 'string', example: 'John'),
                     new OA\Property(property: 'lastName', type: 'string', example: 'Doe'),
+                    new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
+                    new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: true),
-                    new OA\Property(property: 'organizationId', type: 'integer', example: 1),
-                    new OA\Property(
-                        property: 'contactDetail',
-                        type: 'object',
-                        nullable: true,
-                        properties: [
-                            new OA\Property(property: 'streetName', type: 'string', example: 'Main Street'),
-                            new OA\Property(property: 'streetNumber', type: 'string', example: '123'),
-                            new OA\Property(property: 'flatNumber', type: 'string', nullable: true, example: '4A'),
-                            new OA\Property(property: 'postCode', type: 'string', example: '00-001'),
-                            new OA\Property(property: 'city', type: 'string', example: 'Warsaw'),
-                            new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
-                            new OA\Property(property: 'phone', type: 'string', example: '+48123456789')
-                        ]
-                    )
+                    new OA\Property(property: 'organizationId', type: 'integer', example: 1)
                 ]
             )
         ),
@@ -257,7 +246,7 @@ class UserController extends AbstractController
             ], 400);
         }
 
-        $requiredFields = ['username', 'password', 'firstName', 'lastName', 'organizationId'];
+        $requiredFields = ['username', 'password', 'firstName', 'lastName', 'email', 'phone', 'organizationId'];
         $missingFields = [];
         
         foreach ($requiredFields as $field) {
@@ -286,6 +275,8 @@ class UserController extends AbstractController
         $user->setUsername($data['username']);
         $user->setFirstName($data['firstName']);
         $user->setLastName($data['lastName']);
+        $user->setEmail($data['email']);
+        $user->setPhone($data['phone']);
         $user->setOrganization($organization);
         
         $hashedPassword = $this->passwordHasher->hashPassword($user, $data['password']);
@@ -297,13 +288,6 @@ class UserController extends AbstractController
 
         if (isset($data['firstLoginStatus'])) {
             $user->setFirstLoginStatus((bool)$data['firstLoginStatus']);
-        }
-
-        if (isset($data['contactDetail']) && is_array($data['contactDetail'])) {
-            $contactDetail = $this->createContactDetail($data['contactDetail']);
-            if ($contactDetail instanceof ContactDetail) {
-                $user->setContactDetail($contactDetail);
-            }
         }
 
         $errors = $this->validator->validate($user);
@@ -360,23 +344,11 @@ class UserController extends AbstractController
                     new OA\Property(property: 'password', type: 'string', example: 'NewSecurePassword123'),
                     new OA\Property(property: 'firstName', type: 'string', example: 'John'),
                     new OA\Property(property: 'lastName', type: 'string', example: 'Doe'),
+                    new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
+                    new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
-                    new OA\Property(property: 'organizationId', type: 'integer', example: 1),
-                    new OA\Property(
-                        property: 'contactDetail',
-                        type: 'object',
-                        nullable: true,
-                        properties: [
-                            new OA\Property(property: 'streetName', type: 'string', example: 'Main Street'),
-                            new OA\Property(property: 'streetNumber', type: 'string', example: '123'),
-                            new OA\Property(property: 'flatNumber', type: 'string', nullable: true, example: '4A'),
-                            new OA\Property(property: 'postCode', type: 'string', example: '00-001'),
-                            new OA\Property(property: 'city', type: 'string', example: 'Warsaw'),
-                            new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
-                            new OA\Property(property: 'phone', type: 'string', example: '+48123456789')
-                        ]
-                    )
+                    new OA\Property(property: 'organizationId', type: 'integer', example: 1)
                 ]
             )
         ),
@@ -446,6 +418,8 @@ class UserController extends AbstractController
                     new OA\Property(property: 'password', type: 'string', example: 'NewSecurePassword123'),
                     new OA\Property(property: 'firstName', type: 'string', example: 'John'),
                     new OA\Property(property: 'lastName', type: 'string', example: 'Doe'),
+                    new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
+                    new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
                     new OA\Property(property: 'organizationId', type: 'integer', example: 1)
@@ -550,6 +524,14 @@ class UserController extends AbstractController
             $user->setFirstLoginStatus((bool)$data['firstLoginStatus']);
         }
 
+        if (isset($data['email'])) {
+            $user->setEmail($data['email']);
+        }
+
+        if (isset($data['phone'])) {
+            $user->setPhone($data['phone']);
+        }
+
         if (isset($data['organizationId'])) {
             $organization = $this->entityManager->getRepository(Organization::class)->find($data['organizationId']);
             if (!$organization) {
@@ -559,19 +541,6 @@ class UserController extends AbstractController
                 ], 404);
             }
             $user->setOrganization($organization);
-        }
-
-        if (isset($data['contactDetail']) && is_array($data['contactDetail'])) {
-            $existingContactDetail = $user->getContactDetail();
-            
-            if ($existingContactDetail) {
-                $this->updateContactDetail($existingContactDetail, $data['contactDetail']);
-            } else {
-                $contactDetail = $this->createContactDetail($data['contactDetail']);
-                if ($contactDetail instanceof ContactDetail) {
-                    $user->setContactDetail($contactDetail);
-                }
-            }
         }
 
         $errors = $this->validator->validate($user);
@@ -684,6 +653,8 @@ class UserController extends AbstractController
             'username' => $user->getUsername(),
             'firstName' => $user->getFirstName(),
             'lastName' => $user->getLastName(),
+            'email' => $user->getEmail(),
+            'phone' => $user->getPhone(),
             'roles' => $user->getRoles(),
             'firstLoginStatus' => $user->isFirstLoginStatus()
         ];
@@ -698,72 +669,8 @@ class UserController extends AbstractController
                     'email' => $organization->getEmail()
                 ];
             }
-
-            $contactDetail = $user->getContactDetail();
-            if ($contactDetail) {
-                $data['contactDetail'] = [
-                    'id' => $contactDetail->getId(),
-                    'streetName' => $contactDetail->getStreetName(),
-                    'streetNumber' => $contactDetail->getStreetNumber(),
-                    'flatNumber' => $contactDetail->getFlatNumber(),
-                    'postCode' => $contactDetail->getPostCode(),
-                    'city' => $contactDetail->getCity(),
-                    'email' => $contactDetail->getEmail(),
-                    'phone' => $contactDetail->getPhone()
-                ];
-            }
         }
 
         return $data;
-    }
-
-    private function createContactDetail(array $data): ?ContactDetail
-    {
-        $requiredFields = ['streetName', 'streetNumber', 'postCode', 'city', 'email', 'phone'];
-        
-        foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
-                return null;
-            }
-        }
-
-        $contactDetail = new ContactDetail();
-        $contactDetail->setStreetName($data['streetName']);
-        $contactDetail->setStreetNumber($data['streetNumber']);
-        $contactDetail->setPostCode($data['postCode']);
-        $contactDetail->setCity($data['city']);
-        $contactDetail->setEmail($data['email']);
-        $contactDetail->setPhone($data['phone']);
-
-        if (isset($data['flatNumber'])) {
-            $contactDetail->setFlatNumber($data['flatNumber']);
-        }
-
-        return $contactDetail;
-    }
-
-    private function updateContactDetail(ContactDetail $contactDetail, array $data): void
-    {
-        if (isset($data['streetName'])) {
-            $contactDetail->setStreetName($data['streetName']);
-        }
-        if (isset($data['streetNumber'])) {
-            $contactDetail->setStreetNumber($data['streetNumber']);
-        }
-        if (isset($data['flatNumber'])) {
-            $contactDetail->setFlatNumber($data['flatNumber']);
-        }
-        if (isset($data['postCode'])) {
-            $contactDetail->setPostCode($data['postCode']);
-        }
-        if (isset($data['city'])) {
-            $contactDetail->setCity($data['city']);
-        }
-        if (isset($data['email'])) {
-            $contactDetail->setEmail($data['email']);
-        }
-        if (isset($data['phone'])) {
-            $contactDetail->setPhone($data['phone']);
-        }
     }
 }

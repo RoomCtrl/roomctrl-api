@@ -1,6 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service;
+
+use Symfony\Component\Uid\Uuid;
 
 class UserService
 {
@@ -45,6 +49,11 @@ class UserService
             if (strpos($method, 'get') === 0 && !in_array($method, $excludeMethods)) {
                 $key = lcfirst(preg_replace('/^get/', '', $method));
                 $value = $entity->$method();
+                
+                if ($value instanceof Uuid) {
+                    $value = $value->toRfc4122();
+                }
+                
                 $data[$key] = $value;
             }
         }

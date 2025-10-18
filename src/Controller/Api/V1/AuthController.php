@@ -99,7 +99,7 @@ class AuthController extends AbstractController
                             nullable: true,
                             description: 'Organization details (present only if withDetails=true)',
                             properties: [
-                                new OA\Property(property: 'id', type: 'integer'),
+                                new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                 new OA\Property(property: 'regon', type: 'string'),
                                 new OA\Property(property: 'name', type: 'string'),
                                 new OA\Property(property: 'email', type: 'string'),

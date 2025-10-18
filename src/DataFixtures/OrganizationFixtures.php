@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\DataFixtures;
 
 use App\Entity\Organization;
@@ -19,6 +21,7 @@ class OrganizationFixtures extends Fixture
         $org1->setName('Acme Corporation');
         $org1->setEmail('contact@acme.com');
         $manager->persist($org1);
+        $manager->flush();
         $this->addReference(self::ORG_ACME, $org1);
 
         $org2 = new Organization();
@@ -26,6 +29,7 @@ class OrganizationFixtures extends Fixture
         $org2->setName('Globex Ltd');
         $org2->setEmail('info@globex.com');
         $manager->persist($org2);
+        $manager->flush();
         $this->addReference(self::ORG_GLOBEX, $org2);
 
         $org3 = new Organization();
@@ -33,8 +37,7 @@ class OrganizationFixtures extends Fixture
         $org3->setName('Tech Solutions Sp. z o.o.');
         $org3->setEmail('biuro@techsolutions.pl');
         $manager->persist($org3);
-        $this->addReference(self::ORG_TECH, $org3);
-
         $manager->flush();
+        $this->addReference(self::ORG_TECH, $org3);
     }
 }

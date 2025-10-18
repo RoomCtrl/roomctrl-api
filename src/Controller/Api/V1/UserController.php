@@ -196,7 +196,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: true),
-                    new OA\Property(property: 'organizationId', type: 'integer', example: 1)
+                    new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
         ),
@@ -263,7 +263,16 @@ class UserController extends AbstractController
             ], 400);
         }
 
-        $organization = $this->entityManager->getRepository(Organization::class)->find($data['organizationId']);
+        try {
+            $organizationUuid = Uuid::fromString($data['organizationId']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid organization UUID format'
+            ], 400);
+        }
+
+        $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
         if (!$organization) {
             return $this->json([
                 'code' => 404,
@@ -348,7 +357,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
-                    new OA\Property(property: 'organizationId', type: 'integer', example: 1)
+                    new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
         ),
@@ -422,7 +431,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
                     new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
-                    new OA\Property(property: 'organizationId', type: 'integer', example: 1)
+                    new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
         ),
@@ -533,7 +542,16 @@ class UserController extends AbstractController
         }
 
         if (isset($data['organizationId'])) {
-            $organization = $this->entityManager->getRepository(Organization::class)->find($data['organizationId']);
+            try {
+                $organizationUuid = Uuid::fromString($data['organizationId']);
+            } catch (\InvalidArgumentException $e) {
+                return $this->json([
+                    'code' => 400,
+                    'message' => 'Invalid organization UUID format'
+                ], 400);
+            }
+
+            $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
             if (!$organization) {
                 return $this->json([
                     'code' => 404,
@@ -663,7 +681,7 @@ class UserController extends AbstractController
             $organization = $user->getOrganization();
             if ($organization) {
                 $data['organization'] = [
-                    'id' => $organization->getId(),
+                    'id' => $organization->getId()->toRfc4122(),
                     'regon' => $organization->getRegon(),
                     'name' => $organization->getName(),
                     'email' => $organization->getEmail()

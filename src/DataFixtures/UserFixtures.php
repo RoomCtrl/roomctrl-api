@@ -2,7 +2,6 @@
 
 namespace App\DataFixtures;
 
-use App\Entity\ContactDetail;
 use App\Entity\Organization;
 use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
@@ -31,20 +30,12 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
         ];
 
         for ($i = 1; $i <= 10; $i++) {
-            $contactDetail = new ContactDetail();
-            $contactDetail->setStreetName($faker->streetName());
-            $contactDetail->setStreetNumber($faker->buildingNumber());
-            $contactDetail->setFlatNumber($faker->optional(0.5)->numerify('##'));
-            $contactDetail->setPostCode($faker->postcode());
-            $contactDetail->setCity($faker->city());
-            $contactDetail->setEmail(sprintf('user%d@roomctrl.com', $i));
-            $contactDetail->setPhone($faker->phoneNumber());
-            $manager->persist($contactDetail);
-
             $user = new User();
             $user->setUsername(sprintf('user%d', $i));
             $user->setFirstName($faker->firstName());
             $user->setLastName($faker->lastName());
+            $user->setEmail(sprintf('user%d@roomctrl.com', $i));
+            $user->setPhone($faker->phoneNumber());
             
             if ($i === 1) {
                 $user->setRoles(['ROLE_ADMIN', 'ROLE_USER']);
@@ -54,7 +45,6 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
             
             $user->setFirstLoginStatus(false);
             $user->setOrganization($organizations[($i - 1) % 3]);
-            $user->setContactDetail($contactDetail);
             
             $hashedPassword = $this->passwordHasher->hashPassword($user, 'P@ssw0rd1');
             $user->setPassword($hashedPassword);

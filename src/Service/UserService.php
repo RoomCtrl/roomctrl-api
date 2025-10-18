@@ -23,6 +23,8 @@ class UserService
             'roles' => $user->getRoles() ? $user->getRoles() : [],
             'firstName' => $user->getFirstName() ? $user->getFirstName() : null,
             'lastName' => $user->getLastName() ? $user->getLastName() : null,
+            'email' => $user->getEmail() ? $user->getEmail() : null,
+            'phone' => $user->getPhone() ? $user->getPhone() : null,
             'firstLoginStatus' => $user->isFirstLoginStatus() ? $user->isFirstLoginStatus() : null,
         ];
     }
@@ -30,14 +32,9 @@ class UserService
     private function addDetailedData($user, array &$data): void
     {
         $org = $user->getOrganization() ? $user->getOrganization() : null;
-        $contactDetail = $user->getContactDetail() ? $user->getContactDetail() : null;
 
         if ($org) {
             $data['organization'] = $this->getEntityData($org, ['getUsers']);
-        }
-        
-        if ($contactDetail) {
-            $data['contactDetail'] = $this->getEntityData($contactDetail, ['getUser']);
         }
     }
 

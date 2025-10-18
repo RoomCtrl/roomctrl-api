@@ -76,7 +76,7 @@ class AuthController extends AbstractController
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(type: 'boolean'),
-                description: 'If true, returns full organization and contact details data in response.'
+                description: 'If true, returns full organization data in response.'
             )
         ],
         responses: [
@@ -85,11 +85,13 @@ class AuthController extends AbstractController
                 description: 'Returns the authenticated user data',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'id', type: 'integer'),
+                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                         new OA\Property(property: 'username', type: 'string'),
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
                         new OA\Property(property: 'firstName', type: 'string'),
                         new OA\Property(property: 'lastName', type: 'string'),
+                        new OA\Property(property: 'email', type: 'string'),
+                        new OA\Property(property: 'phone', type: 'string'),
                         new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
                         new OA\Property(
                             property: 'organization',
@@ -101,22 +103,6 @@ class AuthController extends AbstractController
                                 new OA\Property(property: 'regon', type: 'string'),
                                 new OA\Property(property: 'name', type: 'string'),
                                 new OA\Property(property: 'email', type: 'string'),
-                            ]
-                        ),
-                        new OA\Property(
-                            property: 'contactDetail',
-                            type: 'object',
-                            nullable: true,
-                            description: 'Contact details (present only if withDetails=true)',
-                            properties: [
-                                new OA\Property(property: 'id', type: 'integer'),
-                                new OA\Property(property: 'streetName', type: 'string'),
-                                new OA\Property(property: 'streetNumber', type: 'string'),
-                                new OA\Property(property: 'flatNumber', type: 'string', nullable: true),
-                                new OA\Property(property: 'postCode', type: 'string'),
-                                new OA\Property(property: 'city', type: 'string'),
-                                new OA\Property(property: 'email', type: 'string'),
-                                new OA\Property(property: 'phone', type: 'string'),
                             ]
                         )
                     ]

@@ -1,0 +1,40 @@
+###> Docker ###
+.dockerignore
+Dockerfile
+docker-compose.yml
+###< Docker ###
+
+###> Symfony ###
+.env.local
+.env.local.php
+.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< Symfony ###
+
+###> IDEs ###
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+###< IDEs ###
+
+###> OS ###
+.DS_Store
+Thumbs.db
+###< OS ###
+
+###> Git ###
+.git/
+.gitignore
+.gitattributes
+###< Git ###
+
+###> Other ###
+/node_modules/
+npm-debug.log
+yarn-error.log
+###< Other ###

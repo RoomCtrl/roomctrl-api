@@ -8,9 +8,6 @@ services:
     volumes:
       - .:/var/www/html
       - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
-    environment:
-      - DATABASE_URL=postgresql://postgres:P@ssw0rd!@roomctrl-postgres:5432/roomctrl_db?serverVersion=16&charset=utf8
-      - MAILER_DSN=smtp://roomctrl-mailhog:1025
     depends_on:
       - roomctrl-postgres
       - roomctrl-mailhog
@@ -36,9 +33,9 @@ services:
     container_name: roomctrl-postgres
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: roomctrl_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: P@ssw0rd!
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -51,8 +48,8 @@ services:
     container_name: roomctrl-pgadmin
     image: dpage/pgadmin4:latest
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
       PGADMIN_CONFIG_SERVER_MODE: 'True'
     ports:
       - "5050:80"

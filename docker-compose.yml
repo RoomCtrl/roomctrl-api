@@ -9,7 +9,6 @@ services:
       - .:/var/www/html
       - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
     environment:
-      - APP_ENV=dev
       - DATABASE_URL=postgresql://postgres:P@ssw0rd!@roomctrl-postgres:5432/roomctrl_db?serverVersion=16&charset=utf8
       - MAILER_DSN=smtp://roomctrl-mailhog:1025
     depends_on:

@@ -24,6 +24,10 @@ RUN apt-get update && apt-get install -y \
         iconv \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Instalacja Xdebug
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
 # Instalacja Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -34,10 +38,9 @@ COPY docker/php/custom.ini $PHP_INI_DIR/conf.d/custom.ini
 # Ustawienie katalogu roboczego
 WORKDIR /var/www/html
 
-# Użytkownik www-data
-RUN chown -R www-data:www-data /var/www/html
-
-USER www-data
+# Uprawnienia do katalogów
+RUN chown -R www-data:www-data /var/www/html && \
+    chmod 777 /var/www
 
 EXPOSE 9000
 

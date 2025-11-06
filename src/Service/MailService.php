@@ -23,39 +23,45 @@ class MailService
         $this->contactEmail = 'roomctrlinfo@gmail.com';
     }
 
-    public function validateEmailData(array $data): ?array
+    public function validateMailFields(array $data, array $requiredFields, string $emailField = 'email'): ?array
     {
-        if (!isset($data['to']) || !isset($data['subject']) || !isset($data['content'])) {
+        $missingFields = [];
+        foreach ($requiredFields as $field) {
+            if (!isset($data[$field]) || !is_string($data[$field]) || trim($data[$field]) === '') {
+                $missingFields[] = $field;
+            }
+        }
+        if (count($missingFields) > 0) {
             return [
                 'code' => 400,
-                'message' => 'Missing required parameters: to, subject, content'
+                'message' => 'Missing or empty required parameters: ' . implode(', ', $missingFields)
             ];
         }
-
-        return null;
-    }
-
-    public function validateContactFormData(array $data): ?array
-    {
-        if (!isset($data['name']) || !isset($data['email']) || !isset($data['subject']) || !isset($data['message'])) {
-            return [
-                'code' => 400,
-                'message' => 'Missing required parameters: name, email, subject, message'
-            ];
+        if (isset($data[$emailField])) {
+            if (!filter_var($data[$emailField], FILTER_VALIDATE_EMAIL)) {
+                return [
+                    'code' => 400,
+                    'message' => 'Invalid email format'
+                ];
+            }
         }
-
         return null;
     }
 
     public function sendEmail(array $data): array
     {
-        $htmlContent = $this->renderEmailTemplate($data['content'], $data['subject']);
+        $sanitized = [
+            'to' => isset($data['to']) ? $this->sanitizeMailField($data['to']) : '',
+            'subject' => isset($data['subject']) ? $this->sanitizeMailField($data['subject']) : '',
+            'content' => isset($data['content']) ? $this->sanitizeMailField($data['content']) : ''
+        ];
+        $htmlContent = $this->renderEmailTemplate($sanitized['content'], $sanitized['subject']);
 
         $email = (new Email())
             ->from($this->fromAddress)
-            ->to($data['to'])
-            ->subject($data['subject'])
-            ->text($data['content'])
+            ->to($sanitized['to'])
+            ->subject($sanitized['subject'])
+            ->text($sanitized['content'])
             ->html($htmlContent);
 
         $this->mailer->send($email);
@@ -70,21 +76,20 @@ class MailService
     {
         $emailData = [
             'to' => $this->contactEmail,
-            'subject' => '[Contact Form] ' . $data['subject'],
-            'content' => $this->formatContactMessage($data)
+            'subject' => '[Contact Form] ' . $this->sanitizeMailField($data['subject']),
+            'content' => $this->sanitizeMailField($this->formatContactMessage($data))
         ];
-
         return $this->sendEmail($emailData);
     }
 
     private function formatContactMessage(array $data): string
     {
         return "Message from contact form:\n\n" .
-               "From: " . $data['name'] . " <" . $data['email'] . ">\n" .
-               "Subject: " . $data['subject'] . "\n\n" .
-               "Message content:\n" . $data['message'] . "\n\n" .
-               "---\n" .
-               "This message was sent through the website contact form.";
+            "From: " . $this->sanitizeMailField($data['name']) . " <" . $this->sanitizeMailField($data['email']) . ">\n" .
+            "Subject: " . $this->sanitizeMailField($data['subject']) . "\n\n" .
+            "Message content:\n" . $this->sanitizeMailField($data['message']) . "\n\n" .
+            "---\n" .
+            "This message was sent through the website contact form.";
     }
 
     private function renderEmailTemplate(string $content, string $subject): string
@@ -95,5 +100,20 @@ class MailService
             'subject' => $subject,
             'content' => $htmlContent
         ]);
+    }
+
+    private function sanitizeMailField($value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        $dangerous = ['script', 'iframe', 'style', 'object', 'embed'];
+        foreach ($dangerous as $tag) {
+            $value = preg_replace('#<'.$tag.'\b[^>]*>(.*?)</'.$tag.'>#is', '', $value);
+            $value = preg_replace('#<'.$tag.'\b[^>]*>#is', '', $value);
+        }
+        $value = trim($value);
+        return $value;
     }
 }

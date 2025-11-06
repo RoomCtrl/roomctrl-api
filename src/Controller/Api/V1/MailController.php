@@ -58,12 +58,10 @@ class MailController extends AbstractController
     public function sendMail(Request $request, MailService $mailService): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
-
-        $validationError = $mailService->validateEmailData($data);
+        $validationError = $mailService->validateMailFields($data, ['to', 'subject', 'content'], 'to');
         if ($validationError) {
             return $this->json($validationError, $validationError['code']);
         }
-
         try {
             $result = $mailService->sendEmail($data);
             return $this->json($result);
@@ -119,12 +117,10 @@ class MailController extends AbstractController
     public function contactForm(Request $request, MailService $mailService): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
-
-        $validationError = $mailService->validateContactFormData($data);
+        $validationError = $mailService->validateMailFields($data, ['name', 'email', 'subject', 'message'], 'email');
         if ($validationError) {
             return $this->json($validationError, $validationError['code']);
         }
-
         try {
             $mailService->sendContactFormEmail($data);
             return $this->json([

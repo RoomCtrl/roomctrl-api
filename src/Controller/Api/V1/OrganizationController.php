@@ -78,7 +78,7 @@ class OrganizationController extends AbstractController
         return $this->json($data, 200);
     }
 
-    #[Route('/{id}', name: 'organizations_get', methods: ['GET'])]
+    #[Route('/{id}', name: 'organizations_get', methods: ['GET'], requirements: ['id' => '.+'])]
     #[OA\Get(
         path: '/api/v1/organizations/{id}',
         summary: 'Get single organization by ID',
@@ -240,7 +240,7 @@ class OrganizationController extends AbstractController
         ], $result['code']);
     }
 
-    #[Route('/{id}', name: 'organizations_update', methods: ['PUT', 'PATCH'])]
+    #[Route('/{id}', name: 'organizations_update', methods: ['PUT', 'PATCH'], requirements: ['id' => '.+'])]
     #[OA\Put(
         path: '/api/v1/organizations/{id}',
         summary: 'Update organization',
@@ -422,7 +422,7 @@ class OrganizationController extends AbstractController
         ], $result['code']);
     }
 
-    #[Route('/{id}', name: 'organizations_delete', methods: ['DELETE'])]
+    #[Route('/{id}', name: 'organizations_delete', methods: ['DELETE'], requirements: ['id' => '.+'])]
     #[OA\Delete(
         path: '/api/v1/organizations/{id}',
         summary: 'Delete organization',

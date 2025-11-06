@@ -93,7 +93,7 @@ class UserController extends AbstractController
         return $this->json($data, 200);
     }
 
-    #[Route('/{id}', name: 'users_get', methods: ['GET'])]
+    #[Route('/{id}', name: 'users_get', methods: ['GET'], requirements: ['id' => '.+'])]
     #[OA\Get(
         path: '/api/v1/users/{id}',
         summary: 'Get single user by ID',
@@ -283,11 +283,11 @@ class UserController extends AbstractController
         }
 
         $user = new User();
-        $user->setUsername($data['username']);
-        $user->setFirstName($data['firstName']);
-        $user->setLastName($data['lastName']);
-        $user->setEmail($data['email']);
-        $user->setPhone($data['phone']);
+        $user->setUsername($this->sanitizeInput($data['username']));
+        $user->setFirstName($this->sanitizeInput($data['firstName']));
+        $user->setLastName($this->sanitizeInput($data['lastName']));
+        $user->setEmail($this->sanitizeInput($data['email']));
+        $user->setPhone($this->sanitizeInput($data['phone']));
         $user->setOrganization($organization);
         
         $hashedPassword = $this->passwordHasher->hashPassword($user, $data['password']);
@@ -332,7 +332,7 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/{id}', name: 'users_update', methods: ['PUT', 'PATCH'])]
+    #[Route('/{id}', name: 'users_update', methods: ['PUT', 'PATCH'], requirements: ['id' => '.+'])]
     #[OA\Put(
         path: '/api/v1/users/{id}',
         summary: 'Update user',
@@ -511,7 +511,7 @@ class UserController extends AbstractController
         }
 
         if (isset($data['username'])) {
-            $user->setUsername($data['username']);
+            $user->setUsername($this->sanitizeInput($data['username']));
         }
 
         if (isset($data['password'])) {
@@ -520,11 +520,11 @@ class UserController extends AbstractController
         }
 
         if (isset($data['firstName'])) {
-            $user->setFirstName($data['firstName']);
+            $user->setFirstName($this->sanitizeInput($data['firstName']));
         }
 
         if (isset($data['lastName'])) {
-            $user->setLastName($data['lastName']);
+            $user->setLastName($this->sanitizeInput($data['lastName']));
         }
 
         if (isset($data['roles']) && is_array($data['roles'])) {
@@ -536,11 +536,11 @@ class UserController extends AbstractController
         }
 
         if (isset($data['email'])) {
-            $user->setEmail($data['email']);
+            $user->setEmail($this->sanitizeInput($data['email']));
         }
 
         if (isset($data['phone'])) {
-            $user->setPhone($data['phone']);
+            $user->setPhone($this->sanitizeInput($data['phone']));
         }
 
         if (isset($data['organizationId'])) {
@@ -592,7 +592,7 @@ class UserController extends AbstractController
         }
     }
 
-    #[Route('/{id}', name: 'users_delete', methods: ['DELETE'])]
+    #[Route('/{id}', name: 'users_delete', methods: ['DELETE'], requirements: ['id' => '.+'])]
     #[OA\Delete(
         path: '/api/v1/users/{id}',
         summary: 'Delete user',
@@ -692,5 +692,10 @@ class UserController extends AbstractController
         }
 
         return $data;
+    }
+
+    private function sanitizeInput(string $input): string
+    {
+        return strip_tags($input);
     }
 }

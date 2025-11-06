@@ -46,9 +46,9 @@ class OrganizationService
         }
 
         $organization = new Organization();
-        $organization->setRegon($data['regon']);
-        $organization->setName($data['name']);
-        $organization->setEmail($data['email']);
+        $organization->setRegon($this->sanitizeInput($data['regon']));
+        $organization->setName($this->sanitizeInput($data['name']));
+        $organization->setEmail($this->sanitizeInput($data['email']));
 
         $validationResult = $this->validate($organization);
         if (!$validationResult['success']) {
@@ -76,15 +76,15 @@ class OrganizationService
     public function updateOrganization(Organization $organization, array $data): array
     {
         if (isset($data['regon'])) {
-            $organization->setRegon($data['regon']);
+            $organization->setRegon($this->sanitizeInput($data['regon']));
         }
 
         if (isset($data['name'])) {
-            $organization->setName($data['name']);
+            $organization->setName($this->sanitizeInput($data['name']));
         }
 
         if (isset($data['email'])) {
-            $organization->setEmail($data['email']);
+            $organization->setEmail($this->sanitizeInput($data['email']));
         }
 
         $validationResult = $this->validate($organization);
@@ -175,5 +175,10 @@ class OrganizationService
         }
 
         return $missingFields;
+    }
+
+    private function sanitizeInput(string $input): string
+    {
+        return strip_tags($input);
     }
 }

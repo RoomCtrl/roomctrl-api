@@ -1,12 +1,7 @@
+# Feature-based architecture - load controllers from Feature directories
 controllers:
     resource:
-        path: ../src/Controller/
-        namespace: App\Controller
+        path: ../src/Feature/
+        namespace: App\Feature
     type: attribute
-    
-api_v1:
-    resource:
-        path: ../src/Controller/Api/V1/
-        namespace: App\Controller\Api\V1
-    type: attribute
-    prefix: /api/v1
+    prefix: /api

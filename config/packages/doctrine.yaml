@@ -26,6 +26,18 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Feature/Organization/Entity'
                 prefix: 'App\Feature\Organization\Entity'
                 alias: Organization
+            Room:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Feature/Room/Entity'
+                prefix: 'App\Feature\Room\Entity'
+                alias: Room
+            Booking:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Feature/Booking/Entity'
+                prefix: 'App\Feature\Booking\Entity'
+                alias: Booking
 
 when@test:
     doctrine:

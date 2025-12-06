@@ -15,5 +15,11 @@
 ###> lexik/jwt-authentication-bundle ###
 /config/jwt/*.pem
 ###< lexik/jwt-authentication-bundle ###
+
+###> Docker logs ###
+/docker/nginx/logs/*
+!/docker/nginx/logs/.gitkeep
+###< Docker logs ###
+
 .DS_Store
 .idea

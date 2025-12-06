@@ -6,6 +6,7 @@ namespace App\Feature\User\Controller;
 
 use App\Feature\User\Entity\User;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\User\Service\UserPasswordResetService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,15 +24,18 @@ class UserController extends AbstractController
     private EntityManagerInterface $entityManager;
     private ValidatorInterface $validator;
     private UserPasswordHasherInterface $passwordHasher;
+    private UserPasswordResetService $passwordResetService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ValidatorInterface $validator,
-        UserPasswordHasherInterface $passwordHasher
+        UserPasswordHasherInterface $passwordHasher,
+        UserPasswordResetService $passwordResetService
     ) {
         $this->entityManager = $entityManager;
         $this->validator = $validator;
         $this->passwordHasher = $passwordHasher;
+        $this->passwordResetService = $passwordResetService;
     }
 
     #[Route('', name: 'users_list', methods: ['GET'])]
@@ -697,5 +701,95 @@ class UserController extends AbstractController
     private function sanitizeInput(string $input): string
     {
         return strip_tags($input);
+    }
+
+    #[Route('/password_reset/request', name: 'user_password_reset_request', methods: ['POST'])]
+    #[OA\Post(
+        path: '/api/users/password_reset/request',
+        summary: 'Request password reset',
+        description: 'Send a password reset token to user email',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', example: 'user@example.com')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Password reset email sent (or user not found - security)',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'message', type: 'string', example: 'If the email exists, a password reset link has been sent')
+                    ]
+                )
+            ),
+            new OA\Response(response: 400, description: 'Invalid request')
+        ]
+    )]
+    public function requestPasswordReset(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['email'])) {
+            return new JsonResponse(['error' => 'Email is required'], 400);
+        }
+
+        $this->passwordResetService->requestPasswordReset($data['email']);
+
+        return new JsonResponse([
+            'message' => 'If the email exists, a password reset link has been sent'
+        ]);
+    }
+
+    #[Route('/password_reset/confirm', name: 'user_password_reset_confirm', methods: ['POST'])]
+    #[OA\Post(
+        path: '/api/users/password_reset/confirm',
+        summary: 'Confirm password reset',
+        description: 'Reset password using the token received by email',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['token', 'newPassword'],
+                properties: [
+                    new OA\Property(property: 'token', type: 'string', example: 'abc123def456...'),
+                    new OA\Property(property: 'newPassword', type: 'string', example: 'NewP@ssw0rd!')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Password successfully reset',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'message', type: 'string', example: 'Password has been successfully reset')
+                    ]
+                )
+            ),
+            new OA\Response(response: 400, description: 'Invalid or expired token')
+        ]
+    )]
+    public function confirmPasswordReset(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['token']) || !isset($data['newPassword'])) {
+            return new JsonResponse(['error' => 'Token and new password are required'], 400);
+        }
+
+        $success = $this->passwordResetService->confirmPasswordReset(
+            $data['token'],
+            $data['newPassword']
+        );
+
+        if (!$success) {
+            return new JsonResponse(['error' => 'Invalid or expired reset token'], 400);
+        }
+
+        return new JsonResponse(['message' => 'Password has been successfully reset']);
     }
 }

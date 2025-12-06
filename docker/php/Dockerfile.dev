@@ -1,0 +1,60 @@
+FROM php:8.4-fpm
+
+# Argumenty budowania
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Instalacja zależności systemowych i rozszerzeń PHP
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libzip-dev \
+    zip \
+    unzip \
+    libpq-dev \
+    libicu-dev \
+    vim \
+    nano \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install -j$(nproc) \
+        pdo \
+        pdo_pgsql \
+        pgsql \
+        intl \
+        opcache \
+        zip \
+        ctype \
+        iconv \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Instalacja Xdebug dla debugowania
+RUN pecl install xdebug-3.4.0 \
+    && docker-php-ext-enable xdebug
+
+# Instalacja Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Konfiguracja PHP dla developmentu
+RUN cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+# Custom PHP configuration
+COPY docker/php/custom.dev.ini $PHP_INI_DIR/conf.d/custom.ini
+
+# Symfony CLI (optional - bardzo przydatne w dev)
+RUN curl -sS https://get.symfony.com/cli/installer | bash \
+    && mv /root/.symfony5/bin/symfony /usr/local/bin/symfony
+
+# Ustawienie katalogu roboczego
+WORKDIR /var/www/html
+
+# Nadaj odpowiednie uprawnienia
+RUN chown -R www-data:www-data /var/www/html
+
+# W dev mode zostajemy jako root dla wygody
+# USER www-data
+
+EXPOSE 9000
+
+CMD ["php-fpm"]

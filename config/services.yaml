@@ -18,12 +18,13 @@ services:
         exclude:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
+            - '../src/Feature/*/Entity/'
             - '../src/Kernel.php'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
     
     # Custom auth data validator listener
-    App\EventListener\CheckAuthenticationDataListener:
+    App\Feature\Auth\EventListener\CheckAuthenticationDataListener:
         tags:
             - { name: kernel.event_listener, event: kernel.request, priority: 30 }

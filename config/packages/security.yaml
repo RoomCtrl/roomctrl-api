@@ -7,7 +7,7 @@ security:
     providers:
         app_user_provider:
             entity:
-                class: App\Entity\User
+                class: App\Feature\User\Entity\User
                 property: username
 
     firewalls:
@@ -16,23 +16,23 @@ security:
             security: false
         
         login:
-            pattern: ^/api/v1/login
+            pattern: ^/api/login
             stateless: true
             json_login:
-                check_path: /api/v1/login_check
+                check_path: /api/login_check
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
         
         send_mail:
-            pattern: ^/api/v1/send_mail
+            pattern: ^/api/send_mail
             security: false
 
         contact_mail:
-            pattern: ^/api/v1/contact_mail
+            pattern: ^/api/contact_mail
             security: false
 
         download:
-            pattern: ^/api/v1/download
+            pattern: ^/api/download
             security: false
 
         api:
@@ -43,10 +43,10 @@ security:
     # Easy way to control access for large sections of your site
     # Note: Only the *first* access control that matches will be used
     access_control:
-        - { path: ^/api/v1/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/v1/send_mail, roles: PUBLIC_ACCESS }
-        - { path: ^/api/v1/contact_mail, roles: PUBLIC_ACCESS }
-        - { path: ^/api/v1/download, roles: PUBLIC_ACCESS }
+        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/send_mail, roles: PUBLIC_ACCESS }
+        - { path: ^/api/contact_mail, roles: PUBLIC_ACCESS }
+        - { path: ^/api/download, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

@@ -14,12 +14,18 @@ doctrine:
         controller_resolver:
             auto_mapping: false
         mappings:
-            App:
+            User:
                 type: attribute
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Entity'
-                prefix: 'App\Entity'
-                alias: App
+                dir: '%kernel.project_dir%/src/Feature/User/Entity'
+                prefix: 'App\Feature\User\Entity'
+                alias: User
+            Organization:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Feature/Organization/Entity'
+                prefix: 'App\Feature\Organization\Entity'
+                alias: Organization
 
 when@test:
     doctrine:

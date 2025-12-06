@@ -35,6 +35,10 @@ security:
             pattern: ^/api/download
             security: false
 
+        password_reset:
+            pattern: ^/api/users/password_reset
+            security: false
+
         api:
             pattern: ^/api
             stateless: true
@@ -47,6 +51,7 @@ security:
         - { path: ^/api/send_mail, roles: PUBLIC_ACCESS }
         - { path: ^/api/contact_mail, roles: PUBLIC_ACCESS }
         - { path: ^/api/download, roles: PUBLIC_ACCESS }
+        - { path: ^/api/users/password_reset, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

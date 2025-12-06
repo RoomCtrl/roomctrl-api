@@ -28,3 +28,8 @@ services:
     App\Feature\Auth\EventListener\CheckAuthenticationDataListener:
         tags:
             - { name: kernel.event_listener, event: kernel.request, priority: 30 }
+
+    # Password reset service with mail configuration
+    App\Feature\User\Service\UserPasswordResetService:
+        arguments:
+            $mailFromAddress: '%env(MAIL_FROM_ADDRESS)%'

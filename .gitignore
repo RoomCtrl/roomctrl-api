@@ -21,5 +21,10 @@
 !/docker/nginx/logs/.gitkeep
 ###< Docker logs ###
 
+###> Uploaded files ###
+/public/uploads/rooms/*
+!/public/uploads/rooms/.gitkeep
+###< Uploaded files ###
+
 .DS_Store
 .idea

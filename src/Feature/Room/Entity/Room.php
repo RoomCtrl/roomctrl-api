@@ -53,6 +53,9 @@ class Room
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $airConditioning = null;
 
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $imagePath = null;
+
     #[ORM\ManyToOne(targetEntity: Organization::class)]
     #[ORM\JoinColumn(nullable: false)]
     #[Assert\NotNull]
@@ -212,6 +215,17 @@ class Room
             $roomStatus->setRoom($this);
         }
         
+        return $this;
+    }
+
+    public function getImagePath(): ?string
+    {
+        return $this->imagePath;
+    }
+
+    public function setImagePath(?string $imagePath): self
+    {
+        $this->imagePath = $imagePath;
         return $this;
     }
 }

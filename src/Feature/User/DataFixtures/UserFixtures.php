@@ -15,6 +15,8 @@ use Faker\Factory;
 
 class UserFixtures extends Fixture implements DependentFixtureInterface
 {
+    public const USER_REFERENCE = 'user-1';
+    
     private UserPasswordHasherInterface $passwordHasher;
 
     public function __construct(UserPasswordHasherInterface $passwordHasher)
@@ -53,6 +55,10 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
             $user->setPassword($hashedPassword);
             
             $manager->persist($user);
+            
+            if ($i === 1) {
+                $this->addReference(self::USER_REFERENCE, $user);
+            }
         }
 
         $manager->flush();

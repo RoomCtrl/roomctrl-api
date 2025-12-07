@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20251206145716 extends AbstractMigration
+final class Version20251207210820 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -20,7 +20,7 @@ final class Version20251206145716 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // this up() migration is auto-generated, please modify it to your needs
-        $this->addSql('CREATE TABLE bookings (id UUID NOT NULL, title VARCHAR(255) NOT NULL, started_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, ended_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, participants INT NOT NULL, is_private BOOLEAN NOT NULL, status VARCHAR(20) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, room_id UUID NOT NULL, user_id UUID NOT NULL, PRIMARY KEY (id))');
+        $this->addSql('CREATE TABLE bookings (id UUID NOT NULL, title VARCHAR(255) NOT NULL, started_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, ended_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, participants INT NOT NULL, is_private BOOLEAN NOT NULL, status VARCHAR(20) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, room_id UUID DEFAULT NULL, user_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_7A853C3554177093 ON bookings (room_id)');
         $this->addSql('CREATE INDEX IDX_7A853C35A76ED395 ON bookings (user_id)');
         $this->addSql('CREATE TABLE equipment (id UUID NOT NULL, name VARCHAR(100) NOT NULL, category VARCHAR(50) NOT NULL, quantity INT NOT NULL, room_id UUID NOT NULL, PRIMARY KEY (id))');
@@ -30,12 +30,12 @@ final class Version20251206145716 extends AbstractMigration
         $this->addSql('CREATE UNIQUE INDEX UNIQ_427C1C7FE7927C74 ON organizations (email)');
         $this->addSql('CREATE TABLE room_statuses (id UUID NOT NULL, status VARCHAR(20) NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, room_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_EB16DED554177093 ON room_statuses (room_id)');
-        $this->addSql('CREATE TABLE rooms (id UUID NOT NULL, room_name VARCHAR(100) NOT NULL, capacity INT NOT NULL, size DOUBLE PRECISION NOT NULL, location VARCHAR(255) NOT NULL, access VARCHAR(50) NOT NULL, description TEXT DEFAULT NULL, lighting VARCHAR(100) DEFAULT NULL, air_conditioning JSON DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
+        $this->addSql('CREATE TABLE rooms (id UUID NOT NULL, room_name VARCHAR(100) NOT NULL, capacity INT NOT NULL, size DOUBLE PRECISION NOT NULL, location VARCHAR(255) NOT NULL, access VARCHAR(50) NOT NULL, description TEXT DEFAULT NULL, lighting VARCHAR(100) DEFAULT NULL, air_conditioning JSON DEFAULT NULL, image_path VARCHAR(255) DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_7CA11A9632C8A3DE ON rooms (organization_id)');
         $this->addSql('CREATE TABLE users (id UUID NOT NULL, username VARCHAR(180) NOT NULL, roles JSON NOT NULL, password VARCHAR(255) NOT NULL, first_name VARCHAR(255) NOT NULL, last_name VARCHAR(255) NOT NULL, first_login_status BOOLEAN NOT NULL, email VARCHAR(100) NOT NULL, phone VARCHAR(20) NOT NULL, reset_token VARCHAR(64) DEFAULT NULL, reset_token_expires_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_1483A5E9F85E0677 ON users (username)');
         $this->addSql('CREATE INDEX IDX_1483A5E932C8A3DE ON users (organization_id)');
-        $this->addSql('ALTER TABLE bookings ADD CONSTRAINT FK_7A853C3554177093 FOREIGN KEY (room_id) REFERENCES rooms (id) NOT DEFERRABLE');
+        $this->addSql('ALTER TABLE bookings ADD CONSTRAINT FK_7A853C3554177093 FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE SET NULL NOT DEFERRABLE');
         $this->addSql('ALTER TABLE bookings ADD CONSTRAINT FK_7A853C35A76ED395 FOREIGN KEY (user_id) REFERENCES users (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE equipment ADD CONSTRAINT FK_D338D58354177093 FOREIGN KEY (room_id) REFERENCES rooms (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE room_statuses ADD CONSTRAINT FK_EB16DED554177093 FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE NOT DEFERRABLE');

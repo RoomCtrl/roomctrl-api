@@ -23,8 +23,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
     public function load(ObjectManager $manager): void
     {
         $organization = $this->getReference(OrganizationFixtures::ORG_ACME, Organization::class);
-
-        // Room 201 - Conference Room
+        
         $room201 = new Room();
         $room201->setRoomName('Sala Konferencyjna 201');
         $room201->setCapacity(12);
@@ -35,14 +34,12 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $room201->setLighting('natural');
         $room201->setAirConditioning(['min' => 18, 'max' => 24]);
         $room201->setOrganization($organization);
-
-        // Room 201 Status
+        
         $status201 = new RoomStatus();
         $status201->setStatus('available');
         $status201->setRoom($room201);
         $room201->setRoomStatus($status201);
-
-        // Equipment for Room 201
+        
         $projector201 = new Equipment();
         $projector201->setName('Projektor Full HD');
         $projector201->setCategory('video');
@@ -79,8 +76,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($speakers201);
         $manager->persist($chairs201);
         $manager->persist($table201);
-
-        // Room 202 - Training Room
+        
         $room202 = new Room();
         $room202->setRoomName('Sala Szkoleniowa 202');
         $room202->setCapacity(20);
@@ -91,14 +87,12 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $room202->setLighting('led');
         $room202->setAirConditioning(['min' => 20, 'max' => 26]);
         $room202->setOrganization($organization);
-
-        // Room 202 Status
+        
         $status202 = new RoomStatus();
         $status202->setStatus('available');
         $status202->setRoom($room202);
         $room202->setRoomStatus($status202);
-
-        // Equipment for Room 202
+        
         $projector202 = new Equipment();
         $projector202->setName('Projektor 4K');
         $projector202->setCategory('video');
@@ -135,8 +129,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($laptop202);
         $manager->persist($desks202);
         $manager->persist($flipchart202);
-
-        // Room 203 - Small Meeting Room
+        
         $room203 = new Room();
         $room203->setRoomName('Sala Spotkań 203');
         $room203->setCapacity(6);
@@ -147,14 +140,12 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $room203->setLighting('natural');
         $room203->setAirConditioning(['min' => 19, 'max' => 23]);
         $room203->setOrganization($organization);
-
-        // Room 203 Status
+        
         $status203 = new RoomStatus();
         $status203->setStatus('available');
         $status203->setRoom($room203);
         $room203->setRoomStatus($status203);
-
-        // Equipment for Room 203
+        
         $tv203 = new Equipment();
         $tv203->setName('TV 55"');
         $tv203->setCategory('video');
@@ -184,8 +175,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($table203);
         $manager->persist($chairs203);
         $manager->persist($whiteboard203);
-
-        // Room 301 - Private Office
+        
         $room301 = new Room();
         $room301->setRoomName('Gabinet 301');
         $room301->setCapacity(4);
@@ -196,14 +186,12 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $room301->setLighting('led');
         $room301->setAirConditioning(['min' => 20, 'max' => 24]);
         $room301->setOrganization($organization);
-
-        // Room 301 Status
+        
         $status301 = new RoomStatus();
         $status301->setStatus('occupied');
         $status301->setRoom($room301);
         $room301->setRoomStatus($status301);
-
-        // Equipment for Room 301
+        
         $desk301 = new Equipment();
         $desk301->setName('Biurko kierownicze');
         $desk301->setCategory('furniture');
@@ -235,8 +223,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($monitor301);
 
         $manager->flush();
-
-        // Store references for BookingFixtures
+        
         $this->addReference(self::ROOM_201_REFERENCE, $room201);
         $this->addReference(self::ROOM_202_REFERENCE, $room202);
         $this->addReference(self::ROOM_203_REFERENCE, $room203);

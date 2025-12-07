@@ -6,13 +6,11 @@ namespace App\Feature\Booking\Repository;
 
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Room\Entity\Room;
+use App\Feature\User\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @extends ServiceEntityRepository<Booking>
- */
 class BookingRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -74,5 +72,51 @@ class BookingRepository extends ServiceEntityRepository
     public function flush(): void
     {
         $this->getEntityManager()->flush();
+    }
+
+    public function getBookingCountsByUser(User $user): array
+    {
+        $qb = $this->createQueryBuilder('b');
+        
+        $totalCount = (int) $qb
+            ->select('COUNT(b.id)')
+            ->where('b.user = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $activeCount = (int) $this->createQueryBuilder('b')
+            ->select('COUNT(b.id)')
+            ->where('b.user = :user')
+            ->andWhere('b.status = :status')
+            ->setParameter('user', $user)
+            ->setParameter('status', 'active')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $completedCount = (int) $this->createQueryBuilder('b')
+            ->select('COUNT(b.id)')
+            ->where('b.user = :user')
+            ->andWhere('b.status = :status')
+            ->setParameter('user', $user)
+            ->setParameter('status', 'completed')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $cancelledCount = (int) $this->createQueryBuilder('b')
+            ->select('COUNT(b.id)')
+            ->where('b.user = :user')
+            ->andWhere('b.status = :status')
+            ->setParameter('user', $user)
+            ->setParameter('status', 'cancelled')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return [
+            'count' => $totalCount,
+            'active' => $activeCount,
+            'completed' => $completedCount,
+            'cancelled' => $cancelledCount
+        ];
     }
 }

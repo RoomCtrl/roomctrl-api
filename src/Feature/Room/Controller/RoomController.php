@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Feature\Room\Controller;
 
 use App\Feature\Room\Entity\Room;
-use App\Feature\Room\Entity\RoomStatus;
-use App\Feature\Room\Entity\Equipment;
-use App\Feature\Booking\Entity\Booking;
+use App\Feature\Room\DTO\CreateRoomRequest;
+use App\Feature\Room\DTO\UpdateRoomRequest;
+use App\Feature\Room\Service\RoomService;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\User\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,20 +19,17 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Uid\Uuid;
 use OpenApi\Attributes as OA;
+use Exception;
 
 #[Route('/rooms')]
 #[OA\Tag(name: 'Rooms')]
 class RoomController extends AbstractController
 {
-    private EntityManagerInterface $entityManager;
-    private ValidatorInterface $validator;
-
     public function __construct(
-        EntityManagerInterface $entityManager,
-        ValidatorInterface $validator
+        private readonly RoomService $roomService,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ValidatorInterface $validator
     ) {
-        $this->entityManager = $entityManager;
-        $this->validator = $validator;
     }
 
     #[Route('', name: 'rooms_list', methods: ['GET'])]
@@ -154,18 +152,8 @@ class RoomController extends AbstractController
         $status = $request->query->get('status');
         $withBookings = $request->query->getBoolean('withBookings', false);
 
-        $rooms = $this->entityManager->getRepository(Room::class)->findAll();
-        
-        // Filter by status if provided
-        if ($status) {
-            $rooms = array_filter($rooms, function (Room $room) use ($status) {
-                return $room->getRoomStatus() && $room->getRoomStatus()->getStatus() === $status;
-            });
-        }
-
-        $data = array_map(function (Room $room) use ($withBookings) {
-            return $this->serializeRoom($room, $withBookings);
-        }, $rooms);
+        $rooms = $this->roomService->getAllRooms($status);
+        $data = $this->roomService->serializeRooms($rooms, $withBookings);
 
         return new JsonResponse(array_values($data));
     }
@@ -254,17 +242,17 @@ class RoomController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
 
         if (!$room) {
             return new JsonResponse(['error' => 'Room not found'], 404);
         }
 
-        return new JsonResponse($this->serializeRoom($room, true));
+        return new JsonResponse($this->roomService->serializeRoom($room, true));
     }
 
     #[Route('', name: 'rooms_create', methods: ['POST'])]
@@ -368,13 +356,16 @@ class RoomController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['organizationId'])) {
-            return new JsonResponse(['error' => 'Organization ID is required'], 400);
+        $createRequest = CreateRoomRequest::fromArray($data);
+        
+        $errors = $this->validator->validate($createRequest);
+        if (count($errors) > 0) {
+            return new JsonResponse(['errors' => (string) $errors], 400);
         }
 
         try {
-            $orgUuid = Uuid::fromString($data['organizationId']);
-        } catch (\Exception $e) {
+            $orgUuid = Uuid::fromString($createRequest->organizationId);
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid organization UUID format'], 400);
         }
 
@@ -383,49 +374,21 @@ class RoomController extends AbstractController
             return new JsonResponse(['error' => 'Organization not found'], 404);
         }
 
-        $room = new Room();
-        $room->setRoomName($data['roomName']);
-        $room->setCapacity((int)$data['capacity']);
-        $room->setSize((float)$data['size']);
-        $room->setLocation($data['location']);
-        $room->setAccess($data['access']);
-        $room->setOrganization($organization);
+        $room = $this->roomService->createRoom(
+            roomName: $createRequest->roomName,
+            capacity: $createRequest->capacity,
+            size: $createRequest->size,
+            location: $createRequest->location,
+            access: $createRequest->access,
+            organization: $organization,
+            status: $createRequest->status,
+            description: $createRequest->description,
+            lighting: $createRequest->lighting,
+            airConditioning: $createRequest->airConditioning,
+            equipment: $createRequest->equipment
+        );
 
-        // Create RoomStatus
-        $roomStatus = new RoomStatus();
-        $roomStatus->setStatus($data['status'] ?? 'available');
-        $roomStatus->setRoom($room);
-        $room->setRoomStatus($roomStatus);
-
-        if (isset($data['description'])) {
-            $room->setDescription($data['description']);
-        }
-        if (isset($data['lighting'])) {
-            $room->setLighting($data['lighting']);
-        }
-        if (isset($data['airConditioning'])) {
-            $room->setAirConditioning($data['airConditioning']);
-        }
-
-        if (isset($data['equipment']) && is_array($data['equipment'])) {
-            foreach ($data['equipment'] as $equipData) {
-                $equipment = new Equipment();
-                $equipment->setName($equipData['name']);
-                $equipment->setCategory($equipData['category']);
-                $equipment->setQuantity($equipData['quantity'] ?? 1);
-                $room->addEquipment($equipment);
-            }
-        }
-
-        $errors = $this->validator->validate($room);
-        if (count($errors) > 0) {
-            return new JsonResponse(['errors' => (string) $errors], 400);
-        }
-
-        $this->entityManager->persist($room);
-        $this->entityManager->flush();
-
-        return new JsonResponse($this->serializeRoom($room, false), 201);
+        return new JsonResponse($this->roomService->serializeRoom($room, false), 201);
     }
 
     #[Route('/{id}', name: 'rooms_update', methods: ['PUT'])]
@@ -518,58 +481,38 @@ class RoomController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse(['error' => 'Room not found'], 404);
         }
 
         $data = json_decode($request->getContent(), true);
-
-        if (isset($data['roomName'])) {
-            $room->setRoomName($data['roomName']);
-        }
-        if (isset($data['status'])) {
-            if (!$room->getRoomStatus()) {
-                $roomStatus = new RoomStatus();
-                $roomStatus->setRoom($room);
-                $room->setRoomStatus($roomStatus);
-            }
-            $room->getRoomStatus()->setStatus($data['status']);
-        }
-        if (isset($data['capacity'])) {
-            $room->setCapacity((int)$data['capacity']);
-        }
-        if (isset($data['size'])) {
-            $room->setSize((float)$data['size']);
-        }
-        if (isset($data['location'])) {
-            $room->setLocation($data['location']);
-        }
-        if (isset($data['access'])) {
-            $room->setAccess($data['access']);
-        }
-        if (isset($data['description'])) {
-            $room->setDescription($data['description']);
-        }
-        if (isset($data['lighting'])) {
-            $room->setLighting($data['lighting']);
-        }
-        if (isset($data['airConditioning'])) {
-            $room->setAirConditioning($data['airConditioning']);
-        }
-
-        $errors = $this->validator->validate($room);
+        
+        $updateRequest = UpdateRoomRequest::fromArray($data);
+        
+        $errors = $this->validator->validate($updateRequest);
         if (count($errors) > 0) {
             return new JsonResponse(['errors' => (string) $errors], 400);
         }
 
-        $this->entityManager->flush();
+        $room = $this->roomService->updateRoom(
+            room: $room,
+            roomName: $updateRequest->roomName,
+            capacity: $updateRequest->capacity,
+            size: $updateRequest->size,
+            location: $updateRequest->location,
+            access: $updateRequest->access,
+            status: $updateRequest->status,
+            description: $updateRequest->description,
+            lighting: $updateRequest->lighting,
+            airConditioning: $updateRequest->airConditioning
+        );
 
-        return new JsonResponse($this->serializeRoom($room, false));
+        return new JsonResponse($this->roomService->serializeRoom($room, false));
     }
 
     #[Route('/{id}/upload', name: 'rooms_upload_image', methods: ['POST'])]
@@ -635,7 +578,7 @@ class RoomController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
@@ -648,8 +591,7 @@ class RoomController extends AbstractController
         if (!$file) {
             return new JsonResponse(['error' => 'No file uploaded'], 400);
         }
-
-        // Walidacja typu pliku
+        
         $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
         
@@ -661,8 +603,7 @@ class RoomController extends AbstractController
                 'error' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
             ], 400);
         }
-
-        // Usuń stary plik jeśli istnieje
+        
         if ($room->getImagePath()) {
             $oldFilePath = $this->getParameter('kernel.project_dir') . '/public' . $room->getImagePath();
             if (file_exists($oldFilePath)) {
@@ -670,7 +611,6 @@ class RoomController extends AbstractController
             }
         }
 
-        // Zapisz nowy plik
         $uploadDir = $this->getParameter('kernel.project_dir') . '/public/uploads/rooms';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
@@ -678,8 +618,7 @@ class RoomController extends AbstractController
 
         $fileName = $uuid->toRfc4122() . '_' . time() . '.' . $extension;
         $file->move($uploadDir, $fileName);
-
-        // Zapisz ścieżkę w bazie
+        
         $imagePath = '/uploads/rooms/' . $fileName;
         $room->setImagePath($imagePath);
         $this->entityManager->flush();
@@ -724,7 +663,7 @@ class RoomController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
@@ -787,99 +726,248 @@ class RoomController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse(['error' => 'Room not found'], 404);
         }
 
-        // Anuluj wszystkie aktywne rezerwacje (aktualne i przyszłe)
-        $now = new \DateTimeImmutable();
-        $activeBookings = $this->entityManager->getRepository(Booking::class)
-            ->createQueryBuilder('b')
-            ->where('b.room = :room')
-            ->andWhere('b.status = :status')
-            ->andWhere('b.endedAt >= :now')
-            ->setParameter('room', $room)
-            ->setParameter('status', 'active')
-            ->setParameter('now', $now)
-            ->getQuery()
-            ->getResult();
-
-        foreach ($activeBookings as $booking) {
-            $booking->setStatus('cancelled');
-        }
-
-        // Najpierw flush anulowanych rezerwacji
-        $this->entityManager->flush();
-
-        // Potem usuń pokój
-        $this->entityManager->remove($room);
-        $this->entityManager->flush();
+        $this->roomService->deleteRoom($room);
 
         return new JsonResponse(null, 204);
     }
 
-    private function serializeRoom(Room $room, bool $withBookings = false): array
+    #[Route('/{id}/favorite', name: 'rooms_toggle_favorite', methods: ['POST'])]
+    #[OA\Post(
+        path: '/api/rooms/{id}/favorite',
+        summary: 'Toggle room as favorite for the current user',
+        security: [['Bearer' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid'),
+                description: 'Room ID'
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Room favorite status toggled',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'isFavorite', type: 'boolean', description: 'Whether the room is now favorited'),
+                        new OA\Property(property: 'message', type: 'string')
+                    ],
+                    example: [
+                        'isFavorite' => true,
+                        'message' => 'Room added to favorites'
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Room not found'
+            )
+        ]
+    )]
+    public function toggleFavorite(string $id): JsonResponse
     {
-        $data = [
-            'roomId' => $room->getId()->toRfc4122(),
-            'roomName' => $room->getRoomName(),
-            'status' => $room->getRoomStatus() ? $room->getRoomStatus()->getStatus() : 'available',
-            'capacity' => $room->getCapacity(),
-            'size' => $room->getSize(),
-            'location' => $room->getLocation(),
-            'access' => $room->getAccess(),
-            'description' => $room->getDescription(),
-            'lighting' => $room->getLighting(),
-            'airConditioning' => $room->getAirConditioning(),
-            'imagePath' => $room->getImagePath(),
-            'equipment' => array_map(function (Equipment $eq) {
-                return [
-                    'name' => $eq->getName(),
-                    'category' => $eq->getCategory(),
-                    'quantity' => $eq->getQuantity()
-                ];
-            }, $room->getEquipment()->toArray())
-        ];
-
-        if ($withBookings) {
-            $now = new \DateTimeImmutable();
-            $bookings = $this->entityManager->getRepository(Booking::class)->findBy(
-                ['room' => $room, 'status' => 'active'],
-                ['startedAt' => 'ASC']
-            );
-
-            $currentBooking = null;
-            $nextBookings = [];
-
-            foreach ($bookings as $booking) {
-                if ($booking->getStartedAt() <= $now && $booking->getEndedAt() > $now) {
-                    $currentBooking = $this->serializeBooking($booking);
-                } elseif ($booking->getStartedAt() > $now) {
-                    $nextBookings[] = $this->serializeBooking($booking);
-                }
-            }
-
-            $data['currentBooking'] = $currentBooking;
-            $data['nextBookings'] = $nextBookings;
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
         }
 
-        return $data;
+        try {
+            $uuid = Uuid::fromString($id);
+        } catch (Exception $e) {
+            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+        }
+
+        $room = $this->roomService->getRoomById($uuid);
+
+        if (!$room) {
+            return new JsonResponse(['error' => 'Room not found'], 404);
+        }
+
+        $isFavorite = $this->roomService->toggleFavorite($room, $user);
+        $message = $isFavorite ? 'Room added to favorites' : 'Room removed from favorites';
+
+        return new JsonResponse([
+            'isFavorite' => $isFavorite,
+            'message' => $message
+        ]);
     }
 
-    private function serializeBooking(Booking $booking): array
+    #[Route('/favorites', name: 'rooms_favorites_list', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/rooms/favorites',
+        summary: 'Get favorite rooms for the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns list of favorite rooms',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(
+                        type: 'object',
+                        properties: [
+                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'roomName', type: 'string'),
+                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
+                            new OA\Property(property: 'capacity', type: 'integer'),
+                            new OA\Property(property: 'size', type: 'number', format: 'float'),
+                            new OA\Property(property: 'location', type: 'string'),
+                            new OA\Property(property: 'access', type: 'string'),
+                            new OA\Property(property: 'description', type: 'string'),
+                            new OA\Property(property: 'lighting', type: 'string'),
+                            new OA\Property(
+                                property: 'airConditioning',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'min', type: 'number'),
+                                    new OA\Property(property: 'max', type: 'number')
+                                ]
+                            ),
+                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'equipment',
+                                type: 'array',
+                                items: new OA\Items(
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'name', type: 'string'),
+                                        new OA\Property(property: 'category', type: 'string'),
+                                        new OA\Property(property: 'quantity', type: 'integer')
+                                    ]
+                                )
+                            )
+                        ]
+                    )
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getFavorites(): JsonResponse
     {
-        return [
-            'id' => $booking->getId()->toRfc4122(),
-            'title' => $booking->getTitle(),
-            'startedAt' => $booking->getStartedAt()->format('c'),
-            'endedAt' => $booking->getEndedAt()->format('c'),
-            'participants' => $booking->getParticipants(),
-            'isPrivate' => $booking->isPrivate()
-        ];
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $favoriteRooms = $this->roomService->getFavoriteRooms($user);
+        $data = $this->roomService->serializeRooms($favoriteRooms, false);
+
+        return new JsonResponse(array_values($data));
+    }
+
+    #[Route('/recent', name: 'rooms_recent', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/rooms/recent',
+        summary: 'Get last 3 rooms booked by the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns list of recently booked rooms',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(
+                        type: 'object',
+                        properties: [
+                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'roomName', type: 'string'),
+                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
+                            new OA\Property(property: 'capacity', type: 'integer'),
+                            new OA\Property(property: 'size', type: 'number', format: 'float'),
+                            new OA\Property(property: 'location', type: 'string'),
+                            new OA\Property(property: 'access', type: 'string'),
+                            new OA\Property(property: 'description', type: 'string'),
+                            new OA\Property(property: 'lighting', type: 'string'),
+                            new OA\Property(
+                                property: 'airConditioning',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'min', type: 'number'),
+                                    new OA\Property(property: 'max', type: 'number')
+                                ]
+                            ),
+                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'equipment',
+                                type: 'array',
+                                items: new OA\Items(
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'name', type: 'string'),
+                                        new OA\Property(property: 'category', type: 'string'),
+                                        new OA\Property(property: 'quantity', type: 'integer')
+                                    ]
+                                )
+                            ),
+                            new OA\Property(
+                                property: 'lastBooking',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                    new OA\Property(property: 'title', type: 'string'),
+                                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
+                                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time')
+                                ]
+                            )
+                        ]
+                    )
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getRecentRooms(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $recentRooms = $this->roomService->getRecentlyBookedRooms($user, 3);
+        
+        $data = array_map(function ($item) {
+            return $this->roomService->serializeRoom($item['room'], false) + [
+                'lastBooking' => $item['lastBooking'] ? [
+                    'id' => $item['lastBooking']->getId()->toRfc4122(),
+                    'title' => $item['lastBooking']->getTitle(),
+                    'startedAt' => $item['lastBooking']->getStartedAt()->format('c'),
+                    'endedAt' => $item['lastBooking']->getEndedAt()->format('c')
+                ] : null
+            ];
+        }, $recentRooms);
+
+        return new JsonResponse($data);
     }
 }

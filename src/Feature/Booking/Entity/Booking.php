@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace App\Feature\Booking\Entity;
 
 use App\Feature\Booking\Repository\BookingRepository;
+use App\Feature\Room\Entity\Room;
+use App\Feature\User\Entity\User;
+use DateTimeImmutable;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
-use App\Feature\Room\Entity\Room;
-use App\Feature\User\Entity\User;
 
 #[ORM\Entity(repositoryClass: BookingRepository::class)]
 #[ORM\Table(name: "bookings")]
@@ -29,11 +30,11 @@ class Booking
 
     #[ORM\Column(type: 'datetime_immutable')]
     #[Assert\NotNull]
-    private \DateTimeImmutable $startedAt;
+    private DateTimeImmutable $startedAt;
 
     #[ORM\Column(type: 'datetime_immutable')]
     #[Assert\NotNull]
-    private \DateTimeImmutable $endedAt;
+    private DateTimeImmutable $endedAt;
 
     #[ORM\Column(type: 'integer')]
     #[Assert\NotNull]
@@ -61,11 +62,11 @@ class Booking
     private Collection $participants;
 
     #[ORM\Column(type: 'datetime_immutable')]
-    private \DateTimeImmutable $createdAt;
+    private DateTimeImmutable $createdAt;
 
     public function __construct()
     {
-        $this->createdAt = new \DateTimeImmutable();
+        $this->createdAt = new DateTimeImmutable();
         $this->participants = new ArrayCollection();
     }
 
@@ -85,23 +86,23 @@ class Booking
         return $this;
     }
 
-    public function getStartedAt(): \DateTimeImmutable
+    public function getStartedAt(): DateTimeImmutable
     {
         return $this->startedAt;
     }
 
-    public function setStartedAt(\DateTimeImmutable $startedAt): self
+    public function setStartedAt(DateTimeImmutable $startedAt): self
     {
         $this->startedAt = $startedAt;
         return $this;
     }
 
-    public function getEndedAt(): \DateTimeImmutable
+    public function getEndedAt(): DateTimeImmutable
     {
         return $this->endedAt;
     }
 
-    public function setEndedAt(\DateTimeImmutable $endedAt): self
+    public function setEndedAt(DateTimeImmutable $endedAt): self
     {
         $this->endedAt = $endedAt;
         return $this;
@@ -162,7 +163,7 @@ class Booking
         return $this;
     }
 
-    public function getCreatedAt(): \DateTimeImmutable
+    public function getCreatedAt(): DateTimeImmutable
     {
         return $this->createdAt;
     }

@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace App\Feature\Booking\Controller;
 
+use App\Feature\Booking\DTO\CreateBookingRequest;
+use App\Feature\Booking\DTO\UpdateBookingRequest;
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Booking\Repository\BookingRepository;
 use App\Feature\Booking\Service\BookingService;
 use App\Feature\Booking\Service\BookingSerializer;
 use App\Feature\Room\Entity\Room;
 use App\Feature\User\Entity\User;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Exception;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Uid\Uuid;
-use Exception;
-use OpenApi\Attributes as OA;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/bookings')]
 #[OA\Tag(name: 'Bookings')]
@@ -27,7 +31,8 @@ class BookingController extends AbstractController
         private readonly BookingRepository $bookingRepository,
         private readonly BookingService $bookingService,
         private readonly BookingSerializer $bookingSerializer,
-        private readonly EntityManagerInterface $entityManager
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ValidatorInterface $validator
     ) {
     }
 
@@ -226,12 +231,15 @@ class BookingController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['roomId'])) {
-            return new JsonResponse(['error' => 'Room ID is required'], 400);
+        $createRequest = CreateBookingRequest::fromArray($data);
+        
+        $errors = $this->validator->validate($createRequest);
+        if (count($errors) > 0) {
+            return new JsonResponse(['errors' => (string) $errors], 400);
         }
 
         try {
-            $roomUuid = Uuid::fromString($data['roomId']);
+            $roomUuid = Uuid::fromString($createRequest->roomId);
         } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid room UUID format'], 400);
         }
@@ -247,8 +255,8 @@ class BookingController extends AbstractController
         }
 
         try {
-            $startedAt = new \DateTimeImmutable($data['startedAt']);
-            $endedAt = new \DateTimeImmutable($data['endedAt']);
+            $startedAt = new DateTimeImmutable($createRequest->startedAt);
+            $endedAt = new DateTimeImmutable($createRequest->endedAt);
         } catch (Exception $e) {
             return new JsonResponse(['error' => 'Invalid date format'], 400);
         }
@@ -267,22 +275,205 @@ class BookingController extends AbstractController
         }
 
         $booking = $this->bookingService->createBooking(
-            $data['title'],
+            $createRequest->title,
             $room,
             $user,
             $startedAt,
             $endedAt,
-            $data['participantsCount'],
-            $data['isPrivate'] ?? false,
-            $data['participantIds'] ?? []
+            $createRequest->participantsCount,
+            $createRequest->isPrivate,
+            $createRequest->participantIds
         );
 
-        $errors = $this->bookingService->validateBooking($booking);
-        if (!empty($errors)) {
-            return new JsonResponse(['errors' => $errors], 400);
+        return new JsonResponse($this->bookingSerializer->serialize($booking), 201);
+    }
+
+    #[Route('/{id}', name: 'bookings_update', methods: ['PUT'])]
+    #[OA\Put(
+        path: '/api/bookings/{id}',
+        summary: 'Update a booking',
+        security: [['Bearer' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'title', type: 'string'),
+                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
+                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
+                    new OA\Property(property: 'participantsCount', type: 'integer'),
+                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
+                    new OA\Property(property: 'isPrivate', type: 'boolean')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Booking updated successfully',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                        new OA\Property(property: 'title', type: 'string'),
+                        new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
+                        new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
+                        new OA\Property(property: 'participantsCount', type: 'integer'),
+                        new OA\Property(property: 'isPrivate', type: 'boolean'),
+                        new OA\Property(property: 'status', type: 'string')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Invalid input',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Not authorized to update this booking',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Booking not found',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Time slot already booked',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function update(string $id, Request $request): JsonResponse
+    {
+        try {
+            $uuid = Uuid::fromString($id);
+        } catch (Exception $e) {
+            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
         }
 
-        return new JsonResponse($this->bookingSerializer->serialize($booking), 201);
+        $booking = $this->bookingRepository->findById($uuid);
+        if (!$booking) {
+            return new JsonResponse(['error' => 'Booking not found'], 404);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'User not authenticated'], 401);
+        }
+
+        if (!$this->bookingService->canUserEditBooking($booking, $user)) {
+            return new JsonResponse(['error' => 'Not authorized to update this booking'], 403);
+        }
+
+        if ($booking->getStatus() === 'cancelled') {
+            return new JsonResponse(['error' => 'Cannot update cancelled booking'], 400);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        
+        $updateRequest = UpdateBookingRequest::fromArray($data);
+        
+        $errors = $this->validator->validate($updateRequest);
+        if (count($errors) > 0) {
+            return new JsonResponse(['errors' => (string) $errors], 400);
+        }
+        
+        $room = null;
+        if ($updateRequest->roomId !== null) {
+            try {
+                $roomUuid = Uuid::fromString($updateRequest->roomId);
+                $room = $this->entityManager->getRepository(Room::class)->find($roomUuid);
+                if (!$room) {
+                    return new JsonResponse(['error' => 'Room not found'], 404);
+                }
+            } catch (Exception $e) {
+                return new JsonResponse(['error' => 'Invalid room UUID format'], 400);
+            }
+        }
+
+        $startedAt = null;
+        $endedAt = null;
+        
+        if ($updateRequest->startedAt !== null) {
+            try {
+                $startedAt = new DateTimeImmutable($updateRequest->startedAt);
+            } catch (Exception $e) {
+                return new JsonResponse(['error' => 'Invalid start date format'], 400);
+            }
+        }
+
+        if ($updateRequest->endedAt !== null) {
+            try {
+                $endedAt = new DateTimeImmutable($updateRequest->endedAt);
+            } catch (Exception $e) {
+                return new JsonResponse(['error' => 'Invalid end date format'], 400);
+            }
+        }
+
+        // Validate time range if both dates are provided
+        $finalStartedAt = $startedAt ?? $booking->getStartedAt();
+        $finalEndedAt = $endedAt ?? $booking->getEndedAt();
+        
+        if ($finalStartedAt >= $finalEndedAt) {
+            return new JsonResponse(['error' => 'End time must be after start time'], 400);
+        }
+
+        // Check for conflicts if room or time changes
+        $finalRoom = $room ?? $booking->getRoom();
+        if ($room !== null || $startedAt !== null || $endedAt !== null) {
+            $conflictingBooking = $this->bookingService->findConflictingBooking(
+                $finalRoom,
+                $finalStartedAt,
+                $finalEndedAt,
+                $booking->getId()
+            );
+
+            if ($conflictingBooking) {
+                return new JsonResponse([
+                    'error' => 'Time slot already booked',
+                    'conflictingBooking' => $this->bookingSerializer->serialize($conflictingBooking)
+                ], 409);
+            }
+        }
+
+        $this->bookingService->updateBooking(
+            $booking,
+            $updateRequest->title,
+            $room,
+            $startedAt,
+            $endedAt,
+            $updateRequest->participantsCount,
+            $updateRequest->isPrivate,
+            $updateRequest->participantIds
+        );
+
+        return new JsonResponse($this->bookingSerializer->serialize($booking));
     }
 
     #[Route('/{id}/cancel', name: 'bookings_cancel', methods: ['POST'])]
@@ -452,5 +643,50 @@ class BookingController extends AbstractController
         }
 
         return new JsonResponse($this->bookingSerializer->serialize($booking));
+    }
+
+    #[Route('/count', name: 'bookings_count', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/count',
+        summary: 'Get total number of bookings for the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns booking count for the current user',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'count', type: 'integer', description: 'Total number of bookings'),
+                        new OA\Property(property: 'active', type: 'integer', description: 'Number of active bookings'),
+                        new OA\Property(property: 'completed', type: 'integer', description: 'Number of completed bookings'),
+                        new OA\Property(property: 'cancelled', type: 'integer', description: 'Number of cancelled bookings')
+                    ],
+                    example: [
+                        'count' => 15,
+                        'active' => 3,
+                        'completed' => 10,
+                        'cancelled' => 2
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getCount(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $counts = $this->bookingRepository->getBookingCountsByUser($user);
+
+        return new JsonResponse($counts);
     }
 }

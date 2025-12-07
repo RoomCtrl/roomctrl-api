@@ -30,7 +30,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $currentBooking201->setUser($user);
         $currentBooking201->setStartedAt($now->modify('-30 minutes'));
         $currentBooking201->setEndedAt($now->modify('+1 hour'));
-        $currentBooking201->setParticipants(8);
+        $currentBooking201->setParticipantsCount(8);
         $currentBooking201->setIsPrivate(false);
         $currentBooking201->setStatus('active');
 
@@ -43,7 +43,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $nextBooking201->setUser($user);
         $nextBooking201->setStartedAt($now->modify('+2 hours'));
         $nextBooking201->setEndedAt($now->modify('+3 hours 30 minutes'));
-        $nextBooking201->setParticipants(12);
+        $nextBooking201->setParticipantsCount(12);
         $nextBooking201->setIsPrivate(false);
         $nextBooking201->setStatus('active');
 
@@ -57,7 +57,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $nextBooking201Tomorrow->setUser($user);
         $nextBooking201Tomorrow->setStartedAt($tomorrowMorning);
         $nextBooking201Tomorrow->setEndedAt($tomorrowMorning->modify('+2 hours'));
-        $nextBooking201Tomorrow->setParticipants(10);
+        $nextBooking201Tomorrow->setParticipantsCount(10);
         $nextBooking201Tomorrow->setIsPrivate(false);
         $nextBooking201Tomorrow->setStatus('active');
 
@@ -70,7 +70,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $currentBooking202->setUser($user);
         $currentBooking202->setStartedAt($now->modify('-1 hour'));
         $currentBooking202->setEndedAt($now->modify('+2 hours'));
-        $currentBooking202->setParticipants(18);
+        $currentBooking202->setParticipantsCount(18);
         $currentBooking202->setIsPrivate(false);
         $currentBooking202->setStatus('active');
 
@@ -84,7 +84,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $nextBooking202->setUser($user);
         $nextBooking202->setStartedAt($afternoon);
         $nextBooking202->setEndedAt($afternoon->modify('+3 hours'));
-        $nextBooking202->setParticipants(15);
+        $nextBooking202->setParticipantsCount(15);
         $nextBooking202->setIsPrivate(false);
         $nextBooking202->setStatus('active');
 
@@ -97,7 +97,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $soonBooking203->setUser($user);
         $soonBooking203->setStartedAt($now->modify('+30 minutes'));
         $soonBooking203->setEndedAt($now->modify('+1 hour 30 minutes'));
-        $soonBooking203->setParticipants(3);
+        $soonBooking203->setParticipantsCount(3);
         $soonBooking203->setIsPrivate(true);
         $soonBooking203->setStatus('active');
 
@@ -110,7 +110,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $cancelledBooking->setUser($user);
         $cancelledBooking->setStartedAt($now->modify('+5 hours'));
         $cancelledBooking->setEndedAt($now->modify('+6 hours'));
-        $cancelledBooking->setParticipants(6);
+        $cancelledBooking->setParticipantsCount(6);
         $cancelledBooking->setIsPrivate(false);
         $cancelledBooking->setStatus('cancelled');
 
@@ -124,7 +124,7 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
         $completedBooking->setUser($user);
         $completedBooking->setStartedAt($yesterday);
         $completedBooking->setEndedAt($yesterday->modify('+15 minutes'));
-        $completedBooking->setParticipants(5);
+        $completedBooking->setParticipantsCount(5);
         $completedBooking->setIsPrivate(false);
         $completedBooking->setStatus('completed');
 

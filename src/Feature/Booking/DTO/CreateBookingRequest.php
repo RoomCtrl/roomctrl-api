@@ -17,9 +17,11 @@ class CreateBookingRequest
     public string $roomId;
 
     #[Assert\NotBlank(message: 'Start time is required')]
+    #[Assert\DateTime]
     public string $startedAt;
 
     #[Assert\NotBlank(message: 'End time is required')]
+    #[Assert\DateTime]
     public string $endedAt;
 
     #[Assert\NotNull]

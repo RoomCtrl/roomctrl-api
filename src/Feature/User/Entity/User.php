@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Feature\User\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\Room\Entity\Room;
 
 #[ORM\Entity]
 #[ORM\Table(name: "users")]
@@ -84,6 +87,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $resetTokenExpiresAt = null;
+
+    #[ORM\ManyToMany(targetEntity: Room::class, inversedBy: 'favoritedByUsers')]
+    #[ORM\JoinTable(name: 'user_favorite_rooms')]
+    private Collection $favoriteRooms;
+
+    public function __construct()
+    {
+        $this->favoriteRooms = new ArrayCollection();
+    }
 
     public function getId(): ?Uuid
     {
@@ -238,5 +250,37 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         // If you store any temporary, sensitive data on the user, clear it here
         // $this->plainPassword = null;
+    }
+
+    /**
+     * @return Collection<int, Room>
+     */
+    public function getFavoriteRooms(): Collection
+    {
+        return $this->favoriteRooms;
+    }
+
+    public function addFavoriteRoom(Room $room): self
+    {
+        if (!$this->favoriteRooms->contains($room)) {
+            $this->favoriteRooms->add($room);
+            $room->addFavoritedByUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeFavoriteRoom(Room $room): self
+    {
+        if ($this->favoriteRooms->removeElement($room)) {
+            $room->removeFavoritedByUser($this);
+        }
+
+        return $this;
+    }
+
+    public function isFavoriteRoom(Room $room): bool
+    {
+        return $this->favoriteRooms->contains($room);
     }
 }

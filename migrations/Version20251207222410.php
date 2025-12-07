@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20251207090619 extends AbstractMigration
+final class Version20251207222410 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -38,6 +38,9 @@ final class Version20251207090619 extends AbstractMigration
         $this->addSql('CREATE TABLE users (id UUID NOT NULL, username VARCHAR(180) NOT NULL, roles JSON NOT NULL, password VARCHAR(255) NOT NULL, first_name VARCHAR(255) NOT NULL, last_name VARCHAR(255) NOT NULL, first_login_status BOOLEAN NOT NULL, email VARCHAR(100) NOT NULL, phone VARCHAR(20) NOT NULL, reset_token VARCHAR(64) DEFAULT NULL, reset_token_expires_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_1483A5E9F85E0677 ON users (username)');
         $this->addSql('CREATE INDEX IDX_1483A5E932C8A3DE ON users (organization_id)');
+        $this->addSql('CREATE TABLE user_favorite_rooms (user_id UUID NOT NULL, room_id UUID NOT NULL, PRIMARY KEY (user_id, room_id))');
+        $this->addSql('CREATE INDEX IDX_A1ACEEEBA76ED395 ON user_favorite_rooms (user_id)');
+        $this->addSql('CREATE INDEX IDX_A1ACEEEB54177093 ON user_favorite_rooms (room_id)');
         $this->addSql('ALTER TABLE bookings ADD CONSTRAINT FK_7A853C3554177093 FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE SET NULL NOT DEFERRABLE');
         $this->addSql('ALTER TABLE bookings ADD CONSTRAINT FK_7A853C35A76ED395 FOREIGN KEY (user_id) REFERENCES users (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE booking_participants ADD CONSTRAINT FK_93F6915D3301C60 FOREIGN KEY (booking_id) REFERENCES bookings (id) ON DELETE CASCADE');
@@ -46,6 +49,8 @@ final class Version20251207090619 extends AbstractMigration
         $this->addSql('ALTER TABLE room_statuses ADD CONSTRAINT FK_EB16DED554177093 FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE NOT DEFERRABLE');
         $this->addSql('ALTER TABLE rooms ADD CONSTRAINT FK_7CA11A9632C8A3DE FOREIGN KEY (organization_id) REFERENCES organizations (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE users ADD CONSTRAINT FK_1483A5E932C8A3DE FOREIGN KEY (organization_id) REFERENCES organizations (id) NOT DEFERRABLE');
+        $this->addSql('ALTER TABLE user_favorite_rooms ADD CONSTRAINT FK_A1ACEEEBA76ED395 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE');
+        $this->addSql('ALTER TABLE user_favorite_rooms ADD CONSTRAINT FK_A1ACEEEB54177093 FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE CASCADE');
     }
 
     public function down(Schema $schema): void
@@ -59,6 +64,8 @@ final class Version20251207090619 extends AbstractMigration
         $this->addSql('ALTER TABLE room_statuses DROP CONSTRAINT FK_EB16DED554177093');
         $this->addSql('ALTER TABLE rooms DROP CONSTRAINT FK_7CA11A9632C8A3DE');
         $this->addSql('ALTER TABLE users DROP CONSTRAINT FK_1483A5E932C8A3DE');
+        $this->addSql('ALTER TABLE user_favorite_rooms DROP CONSTRAINT FK_A1ACEEEBA76ED395');
+        $this->addSql('ALTER TABLE user_favorite_rooms DROP CONSTRAINT FK_A1ACEEEB54177093');
         $this->addSql('DROP TABLE bookings');
         $this->addSql('DROP TABLE booking_participants');
         $this->addSql('DROP TABLE equipment');
@@ -66,5 +73,6 @@ final class Version20251207090619 extends AbstractMigration
         $this->addSql('DROP TABLE room_statuses');
         $this->addSql('DROP TABLE rooms');
         $this->addSql('DROP TABLE users');
+        $this->addSql('DROP TABLE user_favorite_rooms');
     }
 }

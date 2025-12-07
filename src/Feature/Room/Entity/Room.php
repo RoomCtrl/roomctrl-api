@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace App\Feature\Room\Entity;
 
+use App\Feature\Room\Repository\RoomRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\User\Entity\User;
 
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: RoomRepository::class)]
 #[ORM\Table(name: "rooms")]
 class Room
 {
@@ -67,9 +69,13 @@ class Room
     #[ORM\OneToOne(mappedBy: 'room', targetEntity: RoomStatus::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private ?RoomStatus $roomStatus = null;
 
+    #[ORM\ManyToMany(targetEntity: User::class, mappedBy: 'favoriteRooms')]
+    private Collection $favoritedByUsers;
+
     public function __construct()
     {
         $this->equipment = new ArrayCollection();
+        $this->favoritedByUsers = new ArrayCollection();
     }
 
     public function getId(): ?Uuid
@@ -226,6 +232,33 @@ class Room
     public function setImagePath(?string $imagePath): self
     {
         $this->imagePath = $imagePath;
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public function getFavoritedByUsers(): Collection
+    {
+        return $this->favoritedByUsers;
+    }
+
+    public function addFavoritedByUser(User $user): self
+    {
+        if (!$this->favoritedByUsers->contains($user)) {
+            $this->favoritedByUsers->add($user);
+            $user->addFavoriteRoom($this);
+        }
+
+        return $this;
+    }
+
+    public function removeFavoritedByUser(User $user): self
+    {
+        if ($this->favoritedByUsers->removeElement($user)) {
+            $user->removeFavoriteRoom($this);
+        }
+
         return $this;
     }
 }

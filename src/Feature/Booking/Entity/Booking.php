@@ -168,9 +168,6 @@ class Booking
         return $this->createdAt;
     }
 
-    /**
-     * @return Collection<int, User>
-     */
     public function getParticipants(): Collection
     {
         return $this->participants;

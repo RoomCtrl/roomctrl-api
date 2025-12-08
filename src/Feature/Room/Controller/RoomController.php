@@ -158,6 +158,167 @@ class RoomController extends AbstractController
         return new JsonResponse(array_values($data));
     }
 
+    #[Route('/favorites', name: 'rooms_favorites_list', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/rooms/favorites',
+        summary: 'Get favorite rooms for the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns list of favorite rooms',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(
+                        type: 'object',
+                        properties: [
+                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'roomName', type: 'string'),
+                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
+                            new OA\Property(property: 'capacity', type: 'integer'),
+                            new OA\Property(property: 'size', type: 'number', format: 'float'),
+                            new OA\Property(property: 'location', type: 'string'),
+                            new OA\Property(property: 'access', type: 'string'),
+                            new OA\Property(property: 'description', type: 'string'),
+                            new OA\Property(property: 'lighting', type: 'string'),
+                            new OA\Property(
+                                property: 'airConditioning',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'min', type: 'number'),
+                                    new OA\Property(property: 'max', type: 'number')
+                                ]
+                            ),
+                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'equipment',
+                                type: 'array',
+                                items: new OA\Items(
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'name', type: 'string'),
+                                        new OA\Property(property: 'category', type: 'string'),
+                                        new OA\Property(property: 'quantity', type: 'integer')
+                                    ]
+                                )
+                            )
+                        ]
+                    )
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getFavorites(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $favoriteRooms = $this->roomService->getFavoriteRooms($user);
+        $data = $this->roomService->serializeRooms($favoriteRooms, false);
+
+        return new JsonResponse(array_values($data));
+    }
+
+    #[Route('/recent', name: 'rooms_recent', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/rooms/recent',
+        summary: 'Get last 3 rooms booked by the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns list of recently booked rooms',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(
+                        type: 'object',
+                        properties: [
+                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'roomName', type: 'string'),
+                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
+                            new OA\Property(property: 'capacity', type: 'integer'),
+                            new OA\Property(property: 'size', type: 'number', format: 'float'),
+                            new OA\Property(property: 'location', type: 'string'),
+                            new OA\Property(property: 'access', type: 'string'),
+                            new OA\Property(property: 'description', type: 'string'),
+                            new OA\Property(property: 'lighting', type: 'string'),
+                            new OA\Property(
+                                property: 'airConditioning',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'min', type: 'number'),
+                                    new OA\Property(property: 'max', type: 'number')
+                                ]
+                            ),
+                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'equipment',
+                                type: 'array',
+                                items: new OA\Items(
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'name', type: 'string'),
+                                        new OA\Property(property: 'category', type: 'string'),
+                                        new OA\Property(property: 'quantity', type: 'integer')
+                                    ]
+                                )
+                            ),
+                            new OA\Property(
+                                property: 'lastBooking',
+                                type: 'object',
+                                nullable: true,
+                                properties: [
+                                    new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                    new OA\Property(property: 'title', type: 'string'),
+                                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
+                                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time')
+                                ]
+                            )
+                        ]
+                    )
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getRecentRooms(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $recentRooms = $this->roomService->getRecentlyBookedRooms($user, 3);
+        
+        $data = array_map(function ($item) {
+            return $this->roomService->serializeRoom($item['room'], false) + [
+                'lastBooking' => $item['lastBooking'] ? [
+                    'id' => $item['lastBooking']->getId()->toRfc4122(),
+                    'title' => $item['lastBooking']->getTitle(),
+                    'startedAt' => $item['lastBooking']->getStartedAt()->format('c'),
+                    'endedAt' => $item['lastBooking']->getEndedAt()->format('c')
+                ] : null
+            ];
+        }, $recentRooms);
+
+        return new JsonResponse($data);
+    }
+
     #[Route('/{id}', name: 'rooms_get', methods: ['GET'])]
     #[OA\Get(
         path: '/api/rooms/{id}',
@@ -808,166 +969,5 @@ class RoomController extends AbstractController
             'isFavorite' => $isFavorite,
             'message' => $message
         ]);
-    }
-
-    #[Route('/favorites', name: 'rooms_favorites_list', methods: ['GET'])]
-    #[OA\Get(
-        path: '/api/rooms/favorites',
-        summary: 'Get favorite rooms for the current user',
-        security: [['Bearer' => []]],
-        responses: [
-            new OA\Response(
-                response: 200,
-                description: 'Returns list of favorite rooms',
-                content: new OA\JsonContent(
-                    type: 'array',
-                    items: new OA\Items(
-                        type: 'object',
-                        properties: [
-                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                            new OA\Property(property: 'roomName', type: 'string'),
-                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
-                            new OA\Property(property: 'capacity', type: 'integer'),
-                            new OA\Property(property: 'size', type: 'number', format: 'float'),
-                            new OA\Property(property: 'location', type: 'string'),
-                            new OA\Property(property: 'access', type: 'string'),
-                            new OA\Property(property: 'description', type: 'string'),
-                            new OA\Property(property: 'lighting', type: 'string'),
-                            new OA\Property(
-                                property: 'airConditioning',
-                                type: 'object',
-                                nullable: true,
-                                properties: [
-                                    new OA\Property(property: 'min', type: 'number'),
-                                    new OA\Property(property: 'max', type: 'number')
-                                ]
-                            ),
-                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
-                            new OA\Property(
-                                property: 'equipment',
-                                type: 'array',
-                                items: new OA\Items(
-                                    type: 'object',
-                                    properties: [
-                                        new OA\Property(property: 'name', type: 'string'),
-                                        new OA\Property(property: 'category', type: 'string'),
-                                        new OA\Property(property: 'quantity', type: 'integer')
-                                    ]
-                                )
-                            )
-                        ]
-                    )
-                )
-            ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized'
-            )
-        ]
-    )]
-    public function getFavorites(): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = $this->getUser();
-        
-        if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
-        }
-
-        $favoriteRooms = $this->roomService->getFavoriteRooms($user);
-        $data = $this->roomService->serializeRooms($favoriteRooms, false);
-
-        return new JsonResponse(array_values($data));
-    }
-
-    #[Route('/recent', name: 'rooms_recent', methods: ['GET'])]
-    #[OA\Get(
-        path: '/api/rooms/recent',
-        summary: 'Get last 3 rooms booked by the current user',
-        security: [['Bearer' => []]],
-        responses: [
-            new OA\Response(
-                response: 200,
-                description: 'Returns list of recently booked rooms',
-                content: new OA\JsonContent(
-                    type: 'array',
-                    items: new OA\Items(
-                        type: 'object',
-                        properties: [
-                            new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                            new OA\Property(property: 'roomName', type: 'string'),
-                            new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
-                            new OA\Property(property: 'capacity', type: 'integer'),
-                            new OA\Property(property: 'size', type: 'number', format: 'float'),
-                            new OA\Property(property: 'location', type: 'string'),
-                            new OA\Property(property: 'access', type: 'string'),
-                            new OA\Property(property: 'description', type: 'string'),
-                            new OA\Property(property: 'lighting', type: 'string'),
-                            new OA\Property(
-                                property: 'airConditioning',
-                                type: 'object',
-                                nullable: true,
-                                properties: [
-                                    new OA\Property(property: 'min', type: 'number'),
-                                    new OA\Property(property: 'max', type: 'number')
-                                ]
-                            ),
-                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
-                            new OA\Property(
-                                property: 'equipment',
-                                type: 'array',
-                                items: new OA\Items(
-                                    type: 'object',
-                                    properties: [
-                                        new OA\Property(property: 'name', type: 'string'),
-                                        new OA\Property(property: 'category', type: 'string'),
-                                        new OA\Property(property: 'quantity', type: 'integer')
-                                    ]
-                                )
-                            ),
-                            new OA\Property(
-                                property: 'lastBooking',
-                                type: 'object',
-                                nullable: true,
-                                properties: [
-                                    new OA\Property(property: 'id', type: 'string', format: 'uuid'),
-                                    new OA\Property(property: 'title', type: 'string'),
-                                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
-                                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time')
-                                ]
-                            )
-                        ]
-                    )
-                )
-            ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized'
-            )
-        ]
-    )]
-    public function getRecentRooms(): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = $this->getUser();
-        
-        if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
-        }
-
-        $recentRooms = $this->roomService->getRecentlyBookedRooms($user, 3);
-        
-        $data = array_map(function ($item) {
-            return $this->roomService->serializeRoom($item['room'], false) + [
-                'lastBooking' => $item['lastBooking'] ? [
-                    'id' => $item['lastBooking']->getId()->toRfc4122(),
-                    'title' => $item['lastBooking']->getTitle(),
-                    'startedAt' => $item['lastBooking']->getStartedAt()->format('c'),
-                    'endedAt' => $item['lastBooking']->getEndedAt()->format('c')
-                ] : null
-            ];
-        }, $recentRooms);
-
-        return new JsonResponse($data);
     }
 }

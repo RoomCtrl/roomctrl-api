@@ -572,6 +572,51 @@ class BookingController extends AbstractController
         ]);
     }
 
+    #[Route('/count', name: 'bookings_count', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/count',
+        summary: 'Get total number of bookings for the current user',
+        security: [['Bearer' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns booking count for the current user',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'count', type: 'integer', description: 'Total number of bookings'),
+                        new OA\Property(property: 'active', type: 'integer', description: 'Number of active bookings'),
+                        new OA\Property(property: 'completed', type: 'integer', description: 'Number of completed bookings'),
+                        new OA\Property(property: 'cancelled', type: 'integer', description: 'Number of cancelled bookings')
+                    ],
+                    example: [
+                        'count' => 15,
+                        'active' => 3,
+                        'completed' => 10,
+                        'cancelled' => 2
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized'
+            )
+        ]
+    )]
+    public function getCount(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        
+        if (!$user) {
+            return new JsonResponse(['error' => 'Unauthorized'], 401);
+        }
+
+        $counts = $this->bookingRepository->getBookingCountsByUser($user);
+
+        return new JsonResponse($counts);
+    }
+
     #[Route('/{id}', name: 'bookings_get', methods: ['GET'])]
     #[OA\Get(
         path: '/api/bookings/{id}',
@@ -643,50 +688,5 @@ class BookingController extends AbstractController
         }
 
         return new JsonResponse($this->bookingSerializer->serialize($booking));
-    }
-
-    #[Route('/count', name: 'bookings_count', methods: ['GET'])]
-    #[OA\Get(
-        path: '/api/bookings/count',
-        summary: 'Get total number of bookings for the current user',
-        security: [['Bearer' => []]],
-        responses: [
-            new OA\Response(
-                response: 200,
-                description: 'Returns booking count for the current user',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'count', type: 'integer', description: 'Total number of bookings'),
-                        new OA\Property(property: 'active', type: 'integer', description: 'Number of active bookings'),
-                        new OA\Property(property: 'completed', type: 'integer', description: 'Number of completed bookings'),
-                        new OA\Property(property: 'cancelled', type: 'integer', description: 'Number of cancelled bookings')
-                    ],
-                    example: [
-                        'count' => 15,
-                        'active' => 3,
-                        'completed' => 10,
-                        'cancelled' => 2
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized'
-            )
-        ]
-    )]
-    public function getCount(): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = $this->getUser();
-        
-        if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
-        }
-
-        $counts = $this->bookingRepository->getBookingCountsByUser($user);
-
-        return new JsonResponse($counts);
     }
 }

@@ -14,10 +14,16 @@ class UpdateBookingRequest
     #[Assert\Uuid]
     public ?string $roomId = null;
 
-    #[Assert\DateTime]
+    #[Assert\Regex(
+        pattern: '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})?$/',
+        message: 'Invalid datetime format. Use ISO 8601 format (e.g., 2025-12-08T13:16:23 or 2025-12-08T13:16:23Z)'
+    )]
     public ?string $startedAt = null;
 
-    #[Assert\DateTime]
+    #[Assert\Regex(
+        pattern: '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})?$/',
+        message: 'Invalid datetime format. Use ISO 8601 format (e.g., 2025-12-08T13:16:23 or 2025-12-08T13:16:23Z)'
+    )]
     public ?string $endedAt = null;
 
     #[Assert\Positive]

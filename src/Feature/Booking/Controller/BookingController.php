@@ -138,13 +138,13 @@ class BookingController extends AbstractController
             content: new OA\JsonContent(
                 required: ['title', 'roomId', 'startedAt', 'endedAt', 'participantsCount'],
                 properties: [
-                    new OA\Property(property: 'title', type: 'string'),
-                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
-                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
-                    new OA\Property(property: 'participantsCount', type: 'integer'),
-                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
-                    new OA\Property(property: 'isPrivate', type: 'boolean')
+                    new OA\Property(property: 'title', type: 'string', example: 'Team Meeting'),
+                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '019afaf8-7edc-7935-9afc-d94a15e0e7ed'),
+                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time', example: '2025-12-08T13:16:23', description: 'ISO 8601 format (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SSZ)'),
+                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time', example: '2025-12-08T15:15:23', description: 'ISO 8601 format (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SSZ)'),
+                    new OA\Property(property: 'participantsCount', type: 'integer', example: 10),
+                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true, example: ['019afaf8-8087-793e-83e8-e83bab4145c0']),
+                    new OA\Property(property: 'isPrivate', type: 'boolean', example: true)
                 ]
             )
         ),
@@ -300,13 +300,13 @@ class BookingController extends AbstractController
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'title', type: 'string'),
-                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
-                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
-                    new OA\Property(property: 'participantsCount', type: 'integer'),
-                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
-                    new OA\Property(property: 'isPrivate', type: 'boolean')
+                    new OA\Property(property: 'title', type: 'string', example: 'Updated Meeting Title'),
+                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '019afaf8-7edc-7935-9afc-d94a15e0e7ed'),
+                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time', example: '2025-12-08T13:16:23', description: 'ISO 8601 format (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SSZ)'),
+                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time', example: '2025-12-08T15:15:23', description: 'ISO 8601 format (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SSZ)'),
+                    new OA\Property(property: 'participantsCount', type: 'integer', example: 8),
+                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true, example: ['019afaf8-8087-793e-83e8-e83bab4145c0']),
+                    new OA\Property(property: 'isPrivate', type: 'boolean', example: false)
                 ]
             )
         ),

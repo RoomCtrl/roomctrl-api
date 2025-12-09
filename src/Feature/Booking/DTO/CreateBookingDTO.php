@@ -6,7 +6,7 @@ namespace App\Feature\Booking\DTO;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
-class CreateBookingRequest
+class CreateBookingDTO
 {
     #[Assert\NotBlank(message: 'Title is required')]
     #[Assert\Length(min: 3, max: 255)]
@@ -27,6 +27,10 @@ class CreateBookingRequest
     #[Assert\Regex(
         pattern: '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})?$/',
         message: 'Invalid datetime format. Use ISO 8601 format (e.g., 2025-12-08T13:16:23 or 2025-12-08T13:16:23Z)'
+    )]
+    #[Assert\GreaterThan(
+        propertyPath: 'startedAt',
+        message: 'End time must be after start time'
     )]
     public string $endedAt;
 

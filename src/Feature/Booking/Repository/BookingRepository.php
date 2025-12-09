@@ -10,6 +10,7 @@ use App\Feature\User\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
+use DateTimeImmutable;
 
 class BookingRepository extends ServiceEntityRepository
 {
@@ -48,8 +49,8 @@ class BookingRepository extends ServiceEntityRepository
 
     public function findConflictingBooking(
         Room $room,
-        \DateTimeImmutable $startedAt,
-        \DateTimeImmutable $endedAt,
+        DateTimeImmutable $startedAt,
+        DateTimeImmutable $endedAt,
         ?Uuid $excludeBookingId = null
     ): ?Booking {
         $qb = $this->createQueryBuilder('b')

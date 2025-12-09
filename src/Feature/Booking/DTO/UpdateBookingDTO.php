@@ -6,7 +6,7 @@ namespace App\Feature\Booking\DTO;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
-class UpdateBookingRequest
+class UpdateBookingDTO
 {
     #[Assert\Length(min: 3, max: 255)]
     public ?string $title = null;

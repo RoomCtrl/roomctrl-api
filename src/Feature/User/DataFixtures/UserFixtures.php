@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace App\Feature\User\DataFixtures;
 
-use App\Feature\Organization\Entity\Organization;
 use App\Feature\Organization\DataFixtures\OrganizationFixtures;
+use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Faker\Factory;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class UserFixtures extends Fixture implements DependentFixtureInterface
 {
-    public const USER_REFERENCE = 'user-1';
-    
+    public const string USER_REFERENCE = 'user-1';
+
     private UserPasswordHasherInterface $passwordHasher;
 
     public function __construct(UserPasswordHasherInterface $passwordHasher)
@@ -27,7 +27,7 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
     public function load(ObjectManager $manager): void
     {
         $faker = Factory::create('pl_PL');
-        
+
         $organizations = [
             $this->getReference(OrganizationFixtures::ORG_ACME, Organization::class),
             $this->getReference(OrganizationFixtures::ORG_GLOBEX, Organization::class),
@@ -41,21 +41,20 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
             $user->setLastName($faker->lastName());
             $user->setEmail(sprintf('user%d@roomctrl.com', $i));
             $user->setPhone($faker->phoneNumber());
-            
+
             if ($i === 1) {
                 $user->setRoles(['ROLE_ADMIN', 'ROLE_USER']);
             } else {
                 $user->setRoles(['ROLE_USER']);
             }
-            
-            $user->setFirstLoginStatus(false);
+
             $user->setOrganization($organizations[($i - 1) % 3]);
-            
+
             $hashedPassword = $this->passwordHasher->hashPassword($user, 'P@ssw0rd1');
             $user->setPassword($hashedPassword);
-            
+
             $manager->persist($user);
-            
+
             if ($i === 1) {
                 $this->addReference(self::USER_REFERENCE, $user);
             }

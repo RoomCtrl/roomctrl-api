@@ -18,14 +18,12 @@ use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use InvalidArgumentException;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class BookingService
 {
     public function __construct(
         private readonly BookingRepository $bookingRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly ValidatorInterface $validator
+        private readonly EntityManagerInterface $entityManager
     ) {
     }
 
@@ -132,18 +130,6 @@ class BookingService
         );
     }
 
-    public function validateBooking(Booking $booking): array
-    {
-        $errors = $this->validator->validate($booking);
-        $errorMessages = [];
-
-        foreach ($errors as $error) {
-            $errorMessages[] = $error->getMessage();
-        }
-
-        return $errorMessages;
-    }
-
     public function canUserCancelBooking(Booking $booking, User $user): bool
     {
         return $booking->getUser()->getId() === $user->getId()
@@ -186,6 +172,12 @@ class BookingService
 
         $finalStartedAt = $startedAt ?? $booking->getStartedAt();
         $finalEndedAt = $endedAt ?? $booking->getEndedAt();
+
+        // Sprawdź czy data nie jest w przeszłości
+        $now = new DateTimeImmutable();
+        if ($finalStartedAt < $now) {
+            throw new InvalidArgumentException('Cannot update booking to past date');
+        }
 
         if ($finalStartedAt >= $finalEndedAt) {
             throw new InvalidArgumentException('End time must be after start time');
@@ -256,14 +248,6 @@ class BookingService
         return $booking;
     }
 
-    public function validateDTO(object $dto): void
-    {
-        $errors = $this->validator->validate($dto);
-        if (count($errors) > 0) {
-            throw new InvalidArgumentException((string) $errors);
-        }
-    }
-
     private function findRoomByUuid(string $roomId): Room
     {
         $uuid = $this->parseUuid($roomId);
@@ -305,8 +289,8 @@ class BookingService
         if ($conflictingBooking) {
             throw new InvalidArgumentException(
                 json_encode([
-                    'error' => 'Time slot already booked',
-                    'conflictingBooking' => (new BookingResponseDTO($conflictingBooking))->toArray()
+                    'code' => 409,
+                    'message' => 'Time slot already booked'
                 ])
             );
         }

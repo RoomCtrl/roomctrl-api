@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Feature\Auth\DTO;
 
 use App\Feature\User\Entity\User;
-use App\Feature\Auth\DTO\OrganizationDTO;
 
 class UserInfoDTO
 {
@@ -16,7 +15,6 @@ class UserInfoDTO
     private string $lastName;
     private string $email;
     private string $phone;
-    private bool $firstLoginStatus;
     private ?OrganizationDTO $organization = null;
 
     public function __construct(User $user, bool $withOrganization = false)
@@ -28,7 +26,6 @@ class UserInfoDTO
         $this->lastName = $user->getLastName();
         $this->email = $user->getEmail();
         $this->phone = $user->getPhone();
-        $this->firstLoginStatus = $user->isFirstLoginStatus();
 
         if ($withOrganization && $user->getOrganization()) {
             $this->organization = new OrganizationDTO($user->getOrganization());
@@ -45,7 +42,6 @@ class UserInfoDTO
             'lastName' => $this->lastName,
             'email' => $this->email,
             'phone' => $this->phone,
-            'firstLoginStatus' => $this->firstLoginStatus,
         ];
 
         if ($this->organization !== null) {

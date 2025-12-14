@@ -29,7 +29,7 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.request, priority: 30 }
 
-    # Password reset service with mail configuration
-    App\Feature\User\Service\UserPasswordResetService:
+    # User service with mail configuration
+    App\Feature\User\Service\UserService:
         arguments:
             $mailFromAddress: '%env(MAIL_FROM_ADDRESS)%'

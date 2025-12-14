@@ -20,6 +20,7 @@ class CancelBookingResponseDTO
     public function toArray(): array
     {
         return [
+            'code' => 200,
             'message' => $this->message,
             'booking' => $this->booking->toArray()
         ];

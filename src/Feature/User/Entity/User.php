@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace App\Feature\User\Entity;
 
-use Doctrine\ORM\Mapping as ORM;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
-use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\Validator\Constraints as Assert;
-use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
-use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\Room\Entity\Room;
+use App\Feature\User\Repository\UserRepository;
+use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Constraints as Assert;
 
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: "users")]
 #[UniqueEntity(fields: ['username'], message: 'This username is already taken.')]
+#[UniqueEntity(fields: ['email'], message: 'This email is already in use.')]
+#[UniqueEntity(fields: ['phone'], message: 'This phone number is already in use.')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
@@ -35,15 +39,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         maxMessage: 'Username cannot be longer than {{ limit }} characters.'
     )]
     private string $username;
-    
+
     #[ORM\Column(type: 'json')]
     #[Assert\NotNull]
     private array $roles = [];
-    
+
     #[ORM\Column(type: 'string')]
     #[Assert\NotBlank(message: 'Password cannot be blank.')]
     private string $password;
-    
+
     #[ORM\Column(type: 'string', length: 255)]
     #[Assert\NotBlank(message: 'First name cannot be blank.')]
     #[Assert\Length(
@@ -64,21 +68,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     )]
     private string $lastName;
 
-    #[ORM\Column(type: 'boolean')]
-    #[Assert\NotNull]
-    private bool $firstLoginStatus = true;
-
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'users')]
     #[ORM\JoinColumn(nullable: false)]
     #[Assert\NotNull(message: 'Organization cannot be null.')]
     private ?Organization $organization = null;
 
-    #[ORM\Column(type: 'string', length: 100)]
+    #[ORM\Column(type: 'string', length: 100, unique: true)]
     #[Assert\NotBlank(message: 'Email cannot be blank.')]
     #[Assert\Email(message: 'The email "{{ value }}" is not a valid email.')]
     private string $email;
 
-    #[ORM\Column(type: 'string', length: 20)]
+    #[ORM\Column(type: 'string', length: 20, unique: true)]
     #[Assert\NotBlank(message: 'Phone cannot be blank.')]
     private string $phone;
 
@@ -86,7 +86,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $resetToken = null;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
-    private ?\DateTimeImmutable $resetTokenExpiresAt = null;
+    private ?DateTimeImmutable $resetTokenExpiresAt = null;
 
     #[ORM\ManyToMany(targetEntity: Room::class, inversedBy: 'favoritedByUsers')]
     #[ORM\JoinTable(name: 'user_favorite_rooms')]
@@ -116,18 +116,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getUserIdentifier(): string
     {
-        return (string) $this->username;
+        return $this->username;
     }
 
     public function getFirstName(): string
     {
         return $this->firstName;
     }
-    
+
     public function setFirstName(string $firstName): self
     {
         $this->firstName = $firstName;
-        
+
         return $this;
     }
 
@@ -139,19 +139,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastName(string $lastName): self
     {
         $this->lastName = $lastName;
-        
-        return $this;
-    }
-    
-    public function isFirstLoginStatus(): bool
-    {
-        return $this->firstLoginStatus;
-    }
-    
-    public function setFirstLoginStatus(bool $firstLoginStatus): self
-    {
-        $this->firstLoginStatus = $firstLoginStatus;
-        
+
+
         return $this;
     }
 
@@ -226,12 +215,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getResetTokenExpiresAt(): ?\DateTimeImmutable
+    public function getResetTokenExpiresAt(): ?DateTimeImmutable
     {
         return $this->resetTokenExpiresAt;
     }
 
-    public function setResetTokenExpiresAt(?\DateTimeImmutable $resetTokenExpiresAt): self
+    public function setResetTokenExpiresAt(?DateTimeImmutable $resetTokenExpiresAt): self
     {
         $this->resetTokenExpiresAt = $resetTokenExpiresAt;
         return $this;
@@ -243,7 +232,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             return false;
         }
 
-        return $this->resetTokenExpiresAt > new \DateTimeImmutable();
+        return $this->resetTokenExpiresAt > new DateTimeImmutable();
     }
 
     public function eraseCredentials(): void

@@ -219,7 +219,10 @@ class RoomController extends AbstractController
         $user = $this->getUser();
         
         if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
         }
 
         $favoriteRooms = $this->roomService->getFavoriteRooms($user);
@@ -300,7 +303,10 @@ class RoomController extends AbstractController
         $user = $this->getUser();
         
         if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
         }
 
         $recentRooms = $this->roomService->getRecentlyBookedRooms($user, 3);
@@ -404,13 +410,19 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid UUID format'
+            ], 400);
         }
 
         $room = $this->roomService->getRoomById($uuid);
 
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         return new JsonResponse($this->roomService->serializeRoom($room, true));
@@ -521,18 +533,28 @@ class RoomController extends AbstractController
         
         $errors = $this->validator->validate($createRequest);
         if (count($errors) > 0) {
-            return new JsonResponse(['errors' => (string) $errors], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Validation failed',
+                'errors' => (string) $errors
+            ], 400);
         }
 
         try {
             $orgUuid = Uuid::fromString($createRequest->organizationId);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid organization UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid organization UUID format'
+            ], 400);
         }
 
         $organization = $this->entityManager->getRepository(Organization::class)->find($orgUuid);
         if (!$organization) {
-            return new JsonResponse(['error' => 'Organization not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Organization not found'
+            ], 404);
         }
 
         $room = $this->roomService->createRoom(
@@ -549,7 +571,11 @@ class RoomController extends AbstractController
             equipment: $createRequest->equipment
         );
 
-        return new JsonResponse($this->roomService->serializeRoom($room, false), 201);
+        return new JsonResponse([
+            'code' => 201,
+            'message' => 'Room created successfully',
+            'data' => $this->roomService->serializeRoom($room, false)
+        ], 201);
     }
 
     #[Route('/{id}', name: 'rooms_update', methods: ['PUT'])]
@@ -643,12 +669,18 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid UUID format'
+            ], 400);
         }
 
         $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -657,7 +689,11 @@ class RoomController extends AbstractController
         
         $errors = $this->validator->validate($updateRequest);
         if (count($errors) > 0) {
-            return new JsonResponse(['errors' => (string) $errors], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Validation failed',
+                'errors' => (string) $errors
+            ], 400);
         }
 
         $room = $this->roomService->updateRoom(
@@ -673,7 +709,11 @@ class RoomController extends AbstractController
             airConditioning: $updateRequest->airConditioning
         );
 
-        return new JsonResponse($this->roomService->serializeRoom($room, false));
+        return new JsonResponse([
+            'code' => 200,
+            'message' => 'Room updated successfully',
+            'data' => $this->roomService->serializeRoom($room, false)
+        ]);
     }
 
     #[Route('/{id}/upload', name: 'rooms_upload_image', methods: ['POST'])]
@@ -740,17 +780,26 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid UUID format'
+            ], 400);
         }
 
         $room = $this->entityManager->getRepository(Room::class)->find($uuid);
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         $file = $request->files->get('file');
         if (!$file) {
-            return new JsonResponse(['error' => 'No file uploaded'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'No file uploaded'
+            ], 400);
         }
         
         $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
@@ -761,7 +810,8 @@ class RoomController extends AbstractController
 
         if (!in_array($mimeType, $allowedMimeTypes) || !in_array(strtolower($extension), $allowedExtensions)) {
             return new JsonResponse([
-                'error' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
+                'code' => 400,
+                'message' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
             ], 400);
         }
         
@@ -785,6 +835,7 @@ class RoomController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse([
+            'code' => 200,
             'message' => 'File uploaded successfully',
             'imagePath' => $imagePath
         ]);
@@ -825,21 +876,30 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse(['code' => 400, 'message' => 'Invalid UUID format'], 400);
         }
 
         $room = $this->entityManager->getRepository(Room::class)->find($uuid);
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         if (!$room->getImagePath()) {
-            return new JsonResponse(['error' => 'No image uploaded for this room'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'No image uploaded for this room'
+            ], 404);
         }
 
         $filePath = $this->getParameter('kernel.project_dir') . '/public' . $room->getImagePath();
         if (!file_exists($filePath)) {
-            return new JsonResponse(['error' => 'Image file not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Image file not found'
+            ], 404);
         }
 
         $response = new BinaryFileResponse($filePath);
@@ -888,12 +948,18 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid UUID format'
+            ], 400);
         }
 
         $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         $this->roomService->deleteRoom($room);
@@ -947,27 +1013,37 @@ class RoomController extends AbstractController
         $user = $this->getUser();
         
         if (!$user) {
-            return new JsonResponse(['error' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['error' => 'Invalid UUID format'], 400);
+            return new JsonResponse([
+                'code' => 400,
+                'message' => 'Invalid UUID format'
+            ], 400);
         }
 
         $room = $this->roomService->getRoomById($uuid);
 
         if (!$room) {
-            return new JsonResponse(['error' => 'Room not found'], 404);
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
         }
 
         $isFavorite = $this->roomService->toggleFavorite($room, $user);
         $message = $isFavorite ? 'Room added to favorites' : 'Room removed from favorites';
 
         return new JsonResponse([
-            'isFavorite' => $isFavorite,
-            'message' => $message
+            'code' => 200,
+            'message' => $message,
+            'isFavorite' => $isFavorite
         ]);
     }
 }

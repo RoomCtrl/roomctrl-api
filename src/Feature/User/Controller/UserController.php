@@ -4,38 +4,38 @@ declare(strict_types=1);
 
 namespace App\Feature\User\Controller;
 
-use App\Feature\User\Entity\User;
-use App\Feature\Organization\Entity\Organization;
-use App\Feature\User\Service\UserPasswordResetService;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Common\Utility\ValidationErrorFormatter;
+use App\Feature\User\DTO\CreateUserDTO;
+use App\Feature\User\DTO\PasswordResetConfirmDTO;
+use App\Feature\User\DTO\PasswordResetRequestDTO;
+use App\Feature\User\DTO\UpdateUserDTO;
+use App\Feature\User\Repository\UserRepository;
+use App\Feature\User\Service\UserService;
+use Exception;
+use InvalidArgumentException;
+use OpenApi\Attributes as OA;
+use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Uid\Uuid;
-use OpenApi\Attributes as OA;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Twig\Error\LoaderError;
+use Twig\Error\RuntimeError;
+use Twig\Error\SyntaxError;
 
 #[Route('/users')]
 #[OA\Tag(name: 'Users')]
 class UserController extends AbstractController
 {
-    private EntityManagerInterface $entityManager;
-    private ValidatorInterface $validator;
-    private UserPasswordHasherInterface $passwordHasher;
-    private UserPasswordResetService $passwordResetService;
-
     public function __construct(
-        EntityManagerInterface $entityManager,
-        ValidatorInterface $validator,
-        UserPasswordHasherInterface $passwordHasher,
-        UserPasswordResetService $passwordResetService
-    ) {
-        $this->entityManager = $entityManager;
-        $this->validator = $validator;
-        $this->passwordHasher = $passwordHasher;
-        $this->passwordResetService = $passwordResetService;
+        private readonly UserService         $userService,
+        private readonly UserRepository      $userRepository,
+        private readonly ValidatorInterface  $validator
+    )
+    {
     }
 
     #[Route('', name: 'users_list', methods: ['GET'])]
@@ -46,10 +46,10 @@ class UserController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'withDetails',
+                description: 'Include organization details',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'boolean'),
-                description: 'Include organization details'
+                schema: new OA\Schema(type: 'boolean', default: false)
             )
         ],
         responses: [
@@ -60,15 +60,24 @@ class UserController extends AbstractController
                     type: 'array',
                     items: new OA\Items(
                         properties: [
-                            new OA\Property(property: 'id', type: 'string', format: 'uuid'),
-                            new OA\Property(property: 'username', type: 'string'),
-                            new OA\Property(property: 'firstName', type: 'string'),
-                            new OA\Property(property: 'lastName', type: 'string'),
-                            new OA\Property(property: 'email', type: 'string'),
-                            new OA\Property(property: 'phone', type: 'string'),
-                            new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
-                            new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
-                            new OA\Property(property: 'organization', type: 'object', nullable: true)
+                            new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000'),
+                            new OA\Property(property: 'username', type: 'string', example: 'john.doe'),
+                            new OA\Property(property: 'firstName', type: 'string', example: 'John'),
+                            new OA\Property(property: 'lastName', type: 'string', example: 'Doe'),
+                            new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
+                            new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
+                            new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
+                            new OA\Property(
+                                property: 'organization',
+                                properties: [
+                                    new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '987e6543-e21b-12d3-a456-426614174999'),
+                                    new OA\Property(property: 'regon', type: 'string', example: '123456789'),
+                                    new OA\Property(property: 'name', type: 'string', example: 'Example Organization'),
+                                    new OA\Property(property: 'email', type: 'string', example: 'contact@organization.com')
+                                ],
+                                type: 'object',
+                                nullable: true
+                            )
                         ]
                     )
                 )
@@ -88,16 +97,12 @@ class UserController extends AbstractController
     public function list(Request $request): JsonResponse
     {
         $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
-        $users = $this->entityManager->getRepository(User::class)->findAll();
+        $users = $this->userService->getAllUsers($withDetails);
 
-        $data = array_map(function (User $user) use ($withDetails) {
-            return $this->serializeUser($user, $withDetails);
-        }, $users);
-
-        return $this->json($data, 200);
+        return $this->json($users, 200);
     }
 
-    #[Route('/{id}', name: 'users_get', methods: ['GET'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'users_get', requirements: ['id' => '.+'], methods: ['GET'])]
     #[OA\Get(
         path: '/api/users/{id}',
         summary: 'Get a single user by ID',
@@ -105,17 +110,17 @@ class UserController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'id',
+                description: 'User UUID',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'User UUID'
+                schema: new OA\Schema(type: 'string', format: 'uuid')
             ),
             new OA\Parameter(
                 name: 'withDetails',
+                description: 'Include organization details',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'boolean'),
-                description: 'Include organization details'
+                schema: new OA\Schema(type: 'boolean', default: false)
             )
         ],
         responses: [
@@ -124,15 +129,24 @@ class UserController extends AbstractController
                 description: 'User details',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'username', type: 'string'),
-                        new OA\Property(property: 'firstName', type: 'string'),
-                        new OA\Property(property: 'lastName', type: 'string'),
-                        new OA\Property(property: 'email', type: 'string'),
-                        new OA\Property(property: 'phone', type: 'string'),
-                        new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string')),
-                        new OA\Property(property: 'firstLoginStatus', type: 'boolean'),
-                        new OA\Property(property: 'organization', type: 'object', nullable: true)
+                        new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000'),
+                        new OA\Property(property: 'username', type: 'string', example: 'john.doe'),
+                        new OA\Property(property: 'firstName', type: 'string', example: 'John'),
+                        new OA\Property(property: 'lastName', type: 'string', example: 'Doe'),
+                        new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
+                        new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
+                        new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
+                        new OA\Property(
+                            property: 'organization',
+                            properties: [
+                                new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '987e6543-e21b-12d3-a456-426614174999'),
+                                new OA\Property(property: 'regon', type: 'string', example: '123456789'),
+                                new OA\Property(property: 'name', type: 'string', example: 'Example Organization'),
+                                new OA\Property(property: 'email', type: 'string', example: 'contact@organization.com')
+                            ],
+                            type: 'object',
+                            nullable: true
+                        )
                     ]
                 )
             ),
@@ -162,25 +176,24 @@ class UserController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
             ], 400);
         }
 
-        $user = $this->entityManager->getRepository(User::class)->find($uuid);
+        $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
+        $userDTO = $this->userService->getUserById($uuid, $withDetails);
 
-        if (!$user) {
+        if (!$userDTO) {
             return $this->json([
                 'code' => 404,
                 'message' => 'User not found'
             ], 404);
         }
 
-        $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
-
-        return $this->json($this->serializeUser($user, $withDetails), 200);
+        return $this->json($userDTO->toArray(), 200);
     }
 
     #[Route('', name: 'users_create', methods: ['POST'])]
@@ -201,7 +214,6 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
-                    new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: true),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
@@ -225,7 +237,46 @@ class UserController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
                         new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string'))
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'username'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Username must be at least 3 characters long.')
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Organization not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Organization not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Conflict - Username, email or phone already exists',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'This email is already in use.')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to create user')
                     ]
                 )
             ),
@@ -245,111 +296,68 @@ class UserController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!$data) {
+        if (!is_array($data)) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid JSON'
             ], 400);
         }
 
-        $requiredFields = ['username', 'password', 'firstName', 'lastName', 'email', 'phone', 'organizationId'];
-        $missingFields = [];
-        
-        foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
-                $missingFields[] = $field;
-            }
-        }
+        $dto = CreateUserDTO::fromArray($data);
+        $violations = $this->validator->validate($dto);
 
-        if (!empty($missingFields)) {
-            return $this->json([
-                'code' => 400,
-                'message' => 'Missing required fields',
-                'errors' => $missingFields
-            ], 400);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
         }
 
         try {
-            $organizationUuid = Uuid::fromString($data['organizationId']);
-        } catch (\InvalidArgumentException $e) {
-            return $this->json([
-                'code' => 400,
-                'message' => 'Invalid organization UUID format'
-            ], 400);
-        }
-
-        $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
-        if (!$organization) {
-            return $this->json([
-                'code' => 404,
-                'message' => 'Organization not found'
-            ], 404);
-        }
-
-        $user = new User();
-        $user->setUsername($this->sanitizeInput($data['username']));
-        $user->setFirstName($this->sanitizeInput($data['firstName']));
-        $user->setLastName($this->sanitizeInput($data['lastName']));
-        $user->setEmail($this->sanitizeInput($data['email']));
-        $user->setPhone($this->sanitizeInput($data['phone']));
-        $user->setOrganization($organization);
-        
-        $hashedPassword = $this->passwordHasher->hashPassword($user, $data['password']);
-        $user->setPassword($hashedPassword);
-
-        if (isset($data['roles']) && is_array($data['roles'])) {
-            $user->setRoles($data['roles']);
-        }
-
-        if (isset($data['firstLoginStatus'])) {
-            $user->setFirstLoginStatus((bool)$data['firstLoginStatus']);
-        }
-
-        $errors = $this->validator->validate($user);
-        if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[] = $error->getPropertyPath() . ': ' . $error->getMessage();
-            }
-
-            return $this->json([
-                'code' => 400,
-                'message' => 'Validation failed',
-                'errors' => $errorMessages
-            ], 400);
-        }
-
-        try {
-            $this->entityManager->persist($user);
-            $this->entityManager->flush();
+            $user = $this->userService->createUser($dto);
 
             return $this->json([
                 'code' => 201,
                 'message' => 'User created successfully',
                 'id' => $user->getId()->toRfc4122()
             ], 201);
-        } catch (\Exception $e) {
+        } catch (InvalidArgumentException $e) {
+            if (str_contains($e->getMessage(), 'username') || 
+                str_contains($e->getMessage(), 'email') || 
+                str_contains($e->getMessage(), 'phone')) {
+                return $this->json([
+                    'code' => 409,
+                    'message' => $e->getMessage()
+                ], 409);
+            }
+
+            return $this->json([
+                'code' => 404,
+                'message' => $e->getMessage()
+            ], 404);
+        } catch (Exception $e) {
+            // Obsługa naruszenia unique constraint z bazy danych
+            if (str_contains($e->getMessage(), '23505') || str_contains($e->getMessage(), 'duplicate key')) {
+                if (str_contains($e->getMessage(), 'username')) {
+                    return $this->json([
+                        'code' => 409,
+                        'message' => 'This username is already taken.'
+                    ], 409);
+                }
+            }
+
             return $this->json([
                 'code' => 500,
-                'message' => 'Failed to create user: ' . $e->getMessage()
+                'message' => 'Failed to create user'
             ], 500);
         }
     }
 
-    #[Route('/{id}', name: 'users_update', methods: ['PUT', 'PATCH'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'users_update', requirements: ['id' => '.+'], methods: ['PUT', 'PATCH'])]
     #[OA\Put(
         path: '/api/users/{id}',
         summary: 'Update a user',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(
-                name: 'id',
-                in: 'path',
-                required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'User UUID'
-            )
-        ],
         requestBody: new OA\RequestBody(
             description: 'User data to update',
             required: true,
@@ -362,11 +370,19 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
-                    new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
         ),
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'User UUID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -385,17 +401,46 @@ class UserController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
                         new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string'))
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'email'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'The email "invalid" is not a valid email.')
+                                ]
+                            )
+                        )
                     ]
                 )
             ),
             new OA\Response(
                 response: 404,
-                description: 'User not found',
+                description: 'User or Organization not found',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 404),
                         new OA\Property(property: 'message', type: 'string', example: 'User not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Conflict - Username, email or phone already exists',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'This email is already in use.')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to update user')
                     ]
                 )
             ),
@@ -415,15 +460,6 @@ class UserController extends AbstractController
         path: '/api/users/{id}',
         summary: 'Partially update a user',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(
-                name: 'id',
-                in: 'path',
-                required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'User UUID'
-            )
-        ],
         requestBody: new OA\RequestBody(
             description: 'User data to update (partial)',
             required: true,
@@ -436,11 +472,19 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
-                    new OA\Property(property: 'firstLoginStatus', type: 'boolean', example: false),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
         ),
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'User UUID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -459,17 +503,46 @@ class UserController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
                         new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string'))
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'email'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'The email "invalid" is not a valid email.')
+                                ]
+                            )
+                        )
                     ]
                 )
             ),
             new OA\Response(
                 response: 404,
-                description: 'User not found',
+                description: 'User or Organization not found',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 404),
                         new OA\Property(property: 'message', type: 'string', example: 'User not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Conflict - Username, email or phone already exists',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'This email is already in use.')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to update user')
                     ]
                 )
             ),
@@ -489,14 +562,14 @@ class UserController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
             ], 400);
         }
 
-        $user = $this->entityManager->getRepository(User::class)->find($uuid);
+        $user = $this->userRepository->findByUuid($uuid);
 
         if (!$user) {
             return $this->json([
@@ -507,96 +580,53 @@ class UserController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
 
-        if (!$data) {
+        if (!is_array($data)) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid JSON'
             ], 400);
         }
 
-        if (isset($data['username'])) {
-            $user->setUsername($this->sanitizeInput($data['username']));
-        }
+        $dto = UpdateUserDTO::fromArray($data);
+        $violations = $this->validator->validate($dto);
 
-        if (isset($data['password'])) {
-            $hashedPassword = $this->passwordHasher->hashPassword($user, $data['password']);
-            $user->setPassword($hashedPassword);
-        }
-
-        if (isset($data['firstName'])) {
-            $user->setFirstName($this->sanitizeInput($data['firstName']));
-        }
-
-        if (isset($data['lastName'])) {
-            $user->setLastName($this->sanitizeInput($data['lastName']));
-        }
-
-        if (isset($data['roles']) && is_array($data['roles'])) {
-            $user->setRoles($data['roles']);
-        }
-
-        if (isset($data['firstLoginStatus'])) {
-            $user->setFirstLoginStatus((bool)$data['firstLoginStatus']);
-        }
-
-        if (isset($data['email'])) {
-            $user->setEmail($this->sanitizeInput($data['email']));
-        }
-
-        if (isset($data['phone'])) {
-            $user->setPhone($this->sanitizeInput($data['phone']));
-        }
-
-        if (isset($data['organizationId'])) {
-            try {
-                $organizationUuid = Uuid::fromString($data['organizationId']);
-            } catch (\InvalidArgumentException $e) {
-                return $this->json([
-                    'code' => 400,
-                    'message' => 'Invalid organization UUID format'
-                ], 400);
-            }
-
-            $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
-            if (!$organization) {
-                return $this->json([
-                    'code' => 404,
-                    'message' => 'Organization not found'
-                ], 404);
-            }
-            $user->setOrganization($organization);
-        }
-
-        $errors = $this->validator->validate($user);
-        if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[] = $error->getPropertyPath() . ': ' . $error->getMessage();
-            }
-
-            return $this->json([
-                'code' => 400,
-                'message' => 'Validation failed',
-                'errors' => $errorMessages
-            ], 400);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
         }
 
         try {
-            $this->entityManager->flush();
+            $this->userService->updateUser($user, $dto);
 
             return $this->json([
                 'code' => 200,
                 'message' => 'User updated successfully'
             ], 200);
-        } catch (\Exception $e) {
+        } catch (InvalidArgumentException $e) {
+            if (str_contains($e->getMessage(), 'username') || 
+                str_contains($e->getMessage(), 'email') || 
+                str_contains($e->getMessage(), 'phone')) {
+                return $this->json([
+                    'code' => 409,
+                    'message' => $e->getMessage()
+                ], 409);
+            }
+
+            return $this->json([
+                'code' => 404,
+                'message' => $e->getMessage()
+            ], 404);
+        } catch (Exception) {
             return $this->json([
                 'code' => 500,
-                'message' => 'Failed to update user: ' . $e->getMessage()
+                'message' => 'Failed to update user'
             ], 500);
         }
     }
 
-    #[Route('/{id}', name: 'users_delete', methods: ['DELETE'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'users_delete', requirements: ['id' => '.+'], methods: ['DELETE'])]
     #[OA\Delete(
         path: '/api/users/{id}',
         summary: 'Delete a user',
@@ -604,16 +634,22 @@ class UserController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'id',
+                description: 'User UUID',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'User UUID'
+                schema: new OA\Schema(type: 'string', format: 'uuid')
             )
         ],
         responses: [
             new OA\Response(
-                response: 204,
-                description: 'User deleted successfully'
+                response: 200,
+                description: 'User deleted successfully',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'User deleted successfully')
+                    ]
+                )
             ),
             new OA\Response(
                 response: 404,
@@ -641,14 +677,14 @@ class UserController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
             ], 400);
         }
 
-        $user = $this->entityManager->getRepository(User::class)->find($uuid);
+        $user = $this->userRepository->findByUuid($uuid);
 
         if (!$user) {
             return $this->json([
@@ -658,11 +694,13 @@ class UserController extends AbstractController
         }
 
         try {
-            $this->entityManager->remove($user);
-            $this->entityManager->flush();
+            $this->userService->deleteUser($user);
 
-            return new JsonResponse(null, 204);
-        } catch (\Exception $e) {
+            return $this->json([
+                'code' => 200,
+                'message' => 'User deleted successfully'
+            ], 200);
+        } catch (Exception $e) {
             return $this->json([
                 'code' => 500,
                 'message' => 'Failed to delete user: ' . $e->getMessage()
@@ -670,44 +708,15 @@ class UserController extends AbstractController
         }
     }
 
-    private function serializeUser(User $user, bool $withDetails = false): array
-    {
-        $data = [
-            'id' => $user->getId()->toRfc4122(),
-            'username' => $user->getUsername(),
-            'firstName' => $user->getFirstName(),
-            'lastName' => $user->getLastName(),
-            'email' => $user->getEmail(),
-            'phone' => $user->getPhone(),
-            'roles' => $user->getRoles(),
-            'firstLoginStatus' => $user->isFirstLoginStatus()
-        ];
 
-        if ($withDetails) {
-            $organization = $user->getOrganization();
-            if ($organization) {
-                $data['organization'] = [
-                    'id' => $organization->getId()->toRfc4122(),
-                    'regon' => $organization->getRegon(),
-                    'name' => $organization->getName(),
-                    'email' => $organization->getEmail()
-                ];
-            }
-        }
-
-        return $data;
-    }
-
-    private function sanitizeInput(string $input): string
-    {
-        return strip_tags($input);
-    }
-
+    /**
+     * @throws TransportExceptionInterface
+     */
     #[Route('/password_reset/request', name: 'user_password_reset_request', methods: ['POST'])]
     #[OA\Post(
         path: '/api/users/password_reset/request',
-        summary: 'Request password reset',
         description: 'Send a password reset token to user email',
+        summary: 'Request password reset',
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -723,33 +732,84 @@ class UserController extends AbstractController
                 description: 'Password reset email sent (or user not found - security)',
                 content: new OA\JsonContent(
                     properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
                         new OA\Property(property: 'message', type: 'string', example: 'If the email exists, a password reset link has been sent')
                     ]
                 )
             ),
-            new OA\Response(response: 400, description: 'Invalid request')
+            new OA\Response(
+                response: 400,
+                description: 'Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'email'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Email cannot be blank.')
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to send password reset email')
+                    ]
+                )
+            )
         ]
     )]
     public function requestPasswordReset(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['email'])) {
-            return new JsonResponse(['error' => 'Email is required'], 400);
+        if (!is_array($data)) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid JSON'
+            ], 400);
         }
 
-        $this->passwordResetService->requestPasswordReset($data['email']);
+        $dto = PasswordResetRequestDTO::fromArray($data);
+        $violations = $this->validator->validate($dto);
 
-        return new JsonResponse([
-            'message' => 'If the email exists, a password reset link has been sent'
-        ]);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
+        }
+
+        try {
+            $this->userService->requestPasswordReset($dto->email);
+
+            return $this->json([
+                'code' => 200,
+                'message' => 'If the email exists, a password reset link has been sent'
+            ], 200);
+        } catch (Exception) {
+            return $this->json([
+                'code' => 500,
+                'message' => 'Failed to send password reset email'
+            ], 500);
+        }
     }
 
     #[Route('/password_reset/confirm', name: 'user_password_reset_confirm', methods: ['POST'])]
     #[OA\Post(
         path: '/api/users/password_reset/confirm',
-        summary: 'Confirm password reset',
         description: 'Reset password using the token received by email',
+        summary: 'Confirm password reset',
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -766,30 +826,88 @@ class UserController extends AbstractController
                 description: 'Password successfully reset',
                 content: new OA\JsonContent(
                     properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
                         new OA\Property(property: 'message', type: 'string', example: 'Password has been successfully reset')
                     ]
                 )
             ),
-            new OA\Response(response: 400, description: 'Invalid or expired token')
+            new OA\Response(
+                response: 400,
+                description: 'Invalid or expired token or validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid or expired reset token'),
+                        new OA\Property(
+                            property: 'violations',
+                            description: 'Validation errors (only present when validation fails)',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'token'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Token cannot be blank.')
+                                ]
+                            ),
+                            nullable: true
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to reset password')
+                    ]
+                )
+            )
         ]
     )]
     public function confirmPasswordReset(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['token']) || !isset($data['newPassword'])) {
-            return new JsonResponse(['error' => 'Token and new password are required'], 400);
+        if (!is_array($data)) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid JSON'
+            ], 400);
         }
 
-        $success = $this->passwordResetService->confirmPasswordReset(
-            $data['token'],
-            $data['newPassword']
-        );
+        $dto = PasswordResetConfirmDTO::fromArray($data);
+        $violations = $this->validator->validate($dto);
 
-        if (!$success) {
-            return new JsonResponse(['error' => 'Invalid or expired reset token'], 400);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
         }
 
-        return new JsonResponse(['message' => 'Password has been successfully reset']);
+        try {
+            $success = $this->userService->confirmPasswordReset(
+                $dto->token,
+                $dto->newPassword
+            );
+
+            if (!$success) {
+                return $this->json([
+                    'code' => 400,
+                    'message' => 'Invalid or expired reset token'
+                ], 400);
+            }
+
+            return $this->json([
+                'code' => 200,
+                'message' => 'Password has been successfully reset'
+            ], 200);
+        } catch (Exception) {
+            return $this->json([
+                'code' => 500,
+                'message' => 'Failed to reset password'
+            ], 500);
+        }
     }
 }

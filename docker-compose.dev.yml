@@ -10,6 +10,8 @@ services:
       - ./docker/php/custom.dev.ini:/usr/local/etc/php/conf.d/custom.ini
       # Cache Composer dependencies for better performance
       - composer-cache:/root/.composer/cache
+      # Uploads directory
+      - ./public/uploads/rooms:/var/www/html/public/uploads/rooms
     environment:
       APP_ENV: dev
       APP_DEBUG: 1
@@ -59,23 +61,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # pgAdmin
-  roomctrl-pgadmin:
-    container_name: roomctrl-pgadmin-dev
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@roomctrl.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    ports:
-      - "5050:80"
-    depends_on:
-      - roomctrl-postgres
-    volumes:
-      - roomctrl-pgadmin-data-dev:/var/lib/pgadmin
-    networks:
-      - roomctrl-network
-
   # MailHog - Email testing
   roomctrl-mailhog:
     container_name: roomctrl-mailhog-dev
@@ -86,33 +71,12 @@ services:
     networks:
       - roomctrl-network
 
-  # Redis - Cache & Sessions (optional)
-  roomctrl-redis:
-    container_name: roomctrl-redis-dev
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - roomctrl-redis-data-dev:/data
-    networks:
-      - roomctrl-network
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
 networks:
   roomctrl-network:
     driver: bridge
 
 volumes:
   roomctrl-postgres-data-dev:
-    driver: local
-  roomctrl-pgadmin-data-dev:
-    driver: local
-  roomctrl-redis-data-dev:
     driver: local
   composer-cache:
     driver: local

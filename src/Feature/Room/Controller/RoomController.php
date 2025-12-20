@@ -10,6 +10,7 @@ use App\Feature\Room\DTO\UpdateRoomRequest;
 use App\Feature\Room\Service\RoomService;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
+use App\Common\Utility\ValidationErrorFormatter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -144,6 +145,16 @@ class RoomController extends AbstractController
                         ]
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
             )
         ]
     )]
@@ -209,7 +220,13 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthorized'
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
             )
         ]
     )]
@@ -293,7 +310,13 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthorized'
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
             )
         ]
     )]
@@ -402,7 +425,36 @@ class RoomController extends AbstractController
                     ]
                 )
             ),
-            new OA\Response(response: 404, description: 'Room not found')
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
         ]
     )]
     public function get(string $id): JsonResponse
@@ -477,36 +529,27 @@ class RoomController extends AbstractController
                 response: 201,
                 description: 'Room created successfully',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'roomName', type: 'string'),
-                        new OA\Property(property: 'status', type: 'string'),
-                        new OA\Property(property: 'capacity', type: 'integer'),
-                        new OA\Property(property: 'size', type: 'number', format: 'float'),
-                        new OA\Property(property: 'location', type: 'string'),
-                        new OA\Property(property: 'access', type: 'string'),
-                        new OA\Property(property: 'description', type: 'string'),
-                        new OA\Property(property: 'lighting', type: 'string'),
+                        new OA\Property(property: 'code', type: 'integer', example: 201),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room created successfully'),
+                        new OA\Property(property: 'id', type: 'string', format: 'uuid')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
                         new OA\Property(
-                            property: 'airConditioning',
-                            type: 'object',
-                            nullable: true,
-                            properties: [
-                                new OA\Property(property: 'min', type: 'number'),
-                                new OA\Property(property: 'max', type: 'number')
-                            ]
-                        ),
-                        new OA\Property(property: 'imagePath', type: 'string', nullable: true),
-                        new OA\Property(
-                            property: 'equipment',
+                            property: 'violations',
                             type: 'array',
                             items: new OA\Items(
-                                type: 'object',
                                 properties: [
-                                    new OA\Property(property: 'name', type: 'string'),
-                                    new OA\Property(property: 'category', type: 'string'),
-                                    new OA\Property(property: 'quantity', type: 'integer')
+                                    new OA\Property(property: 'field', type: 'string', example: 'roomName'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Room name is required')
                                 ]
                             )
                         )
@@ -514,12 +557,12 @@ class RoomController extends AbstractController
                 )
             ),
             new OA\Response(
-                response: 400,
-                description: 'Invalid input',
+                response: 401,
+                description: 'Unauthorized',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
             )
@@ -529,21 +572,27 @@ class RoomController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
+        if (!is_array($data)) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid JSON'
+            ], 400);
+        }
+
         $createRequest = CreateRoomRequest::fromArray($data);
         
         $errors = $this->validator->validate($createRequest);
         if (count($errors) > 0) {
-            return new JsonResponse([
-                'code' => 400,
-                'message' => 'Validation failed',
-                'errors' => (string) $errors
-            ], 400);
+            return $this->json(
+                ValidationErrorFormatter::format($errors),
+                400
+            );
         }
 
         try {
             $orgUuid = Uuid::fromString($createRequest->organizationId);
         } catch (Exception $e) {
-            return new JsonResponse([
+            return $this->json([
                 'code' => 400,
                 'message' => 'Invalid organization UUID format'
             ], 400);
@@ -551,7 +600,7 @@ class RoomController extends AbstractController
 
         $organization = $this->entityManager->getRepository(Organization::class)->find($orgUuid);
         if (!$organization) {
-            return new JsonResponse([
+            return $this->json([
                 'code' => 404,
                 'message' => 'Organization not found'
             ], 404);
@@ -571,14 +620,14 @@ class RoomController extends AbstractController
             equipment: $createRequest->equipment
         );
 
-        return new JsonResponse([
+        return $this->json([
             'code' => 201,
             'message' => 'Room created successfully',
-            'data' => $this->roomService->serializeRoom($room, false)
+            'id' => $room->getId()->toRfc4122()
         ], 201);
     }
 
-    #[Route('/{id}', name: 'rooms_update', methods: ['PUT'])]
+    #[Route('/{id}', name: 'rooms_update', methods: ['PUT', 'PATCH'])]
     #[OA\Put(
         path: '/api/rooms/{id}',
         summary: 'Update a room',
@@ -616,36 +665,26 @@ class RoomController extends AbstractController
                 response: 200,
                 description: 'Room updated successfully',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'roomName', type: 'string'),
-                        new OA\Property(property: 'status', type: 'string'),
-                        new OA\Property(property: 'capacity', type: 'integer'),
-                        new OA\Property(property: 'size', type: 'number', format: 'float'),
-                        new OA\Property(property: 'location', type: 'string'),
-                        new OA\Property(property: 'access', type: 'string'),
-                        new OA\Property(property: 'description', type: 'string'),
-                        new OA\Property(property: 'lighting', type: 'string'),
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room updated successfully')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format, Invalid JSON, or Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
                         new OA\Property(
-                            property: 'airConditioning',
-                            type: 'object',
-                            nullable: true,
-                            properties: [
-                                new OA\Property(property: 'min', type: 'number'),
-                                new OA\Property(property: 'max', type: 'number')
-                            ]
-                        ),
-                        new OA\Property(property: 'imagePath', type: 'string', nullable: true),
-                        new OA\Property(
-                            property: 'equipment',
+                            property: 'violations',
                             type: 'array',
                             items: new OA\Items(
-                                type: 'object',
                                 properties: [
-                                    new OA\Property(property: 'name', type: 'string'),
-                                    new OA\Property(property: 'category', type: 'string'),
-                                    new OA\Property(property: 'quantity', type: 'integer')
+                                    new OA\Property(property: 'field', type: 'string', example: 'capacity'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Capacity must be between 1 and 200.')
                                 ]
                             )
                         )
@@ -656,9 +695,104 @@ class RoomController extends AbstractController
                 response: 404,
                 description: 'Room not found',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
+        ]
+    )]
+    #[OA\Patch(
+        path: '/api/rooms/{id}',
+        summary: 'Partially update a room',
+        security: [['Bearer' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                properties: [
+                    new OA\Property(property: 'roomName', type: 'string'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['available', 'occupied', 'maintenance']),
+                    new OA\Property(property: 'capacity', type: 'integer'),
+                    new OA\Property(property: 'size', type: 'number', format: 'float'),
+                    new OA\Property(property: 'location', type: 'string'),
+                    new OA\Property(property: 'access', type: 'string'),
+                    new OA\Property(property: 'description', type: 'string'),
+                    new OA\Property(property: 'lighting', type: 'string'),
+                    new OA\Property(
+                        property: 'airConditioning',
+                        type: 'object',
+                        nullable: true,
+                        properties: [
+                            new OA\Property(property: 'min', type: 'number'),
+                            new OA\Property(property: 'max', type: 'number')
+                        ]
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Room updated successfully',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room updated successfully')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format, Invalid JSON, or Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'capacity'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'Capacity must be between 1 and 200.')
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
             )
@@ -669,7 +803,7 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse([
+            return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
             ], 400);
@@ -677,23 +811,29 @@ class RoomController extends AbstractController
 
         $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
-            return new JsonResponse([
+            return $this->json([
                 'code' => 404,
                 'message' => 'Room not found'
             ], 404);
         }
 
         $data = json_decode($request->getContent(), true);
+
+        if (!is_array($data)) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid JSON'
+            ], 400);
+        }
         
         $updateRequest = UpdateRoomRequest::fromArray($data);
         
         $errors = $this->validator->validate($updateRequest);
         if (count($errors) > 0) {
-            return new JsonResponse([
-                'code' => 400,
-                'message' => 'Validation failed',
-                'errors' => (string) $errors
-            ], 400);
+            return $this->json(
+                ValidationErrorFormatter::format($errors),
+                400
+            );
         }
 
         $room = $this->roomService->updateRoom(
@@ -709,11 +849,10 @@ class RoomController extends AbstractController
             airConditioning: $updateRequest->airConditioning
         );
 
-        return new JsonResponse([
+        return $this->json([
             'code' => 200,
-            'message' => 'Room updated successfully',
-            'data' => $this->roomService->serializeRoom($room, false)
-        ]);
+            'message' => 'Room updated successfully'
+        ], 200);
     }
 
     #[Route('/{id}/upload', name: 'rooms_upload_image', methods: ['POST'])]
@@ -746,10 +885,10 @@ class RoomController extends AbstractController
                 response: 200,
                 description: 'File uploaded successfully',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'message', type: 'string'),
-                        new OA\Property(property: 'imagePath', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'File uploaded successfully'),
+                        new OA\Property(property: 'imagePath', type: 'string', example: '/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567890.jpg')
                     ]
                 )
             ),
@@ -757,9 +896,9 @@ class RoomController extends AbstractController
                 response: 400,
                 description: 'Invalid file type or no file uploaded',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid file type. Only JPG, PNG, and PDF files are allowed.')
                     ]
                 )
             ),
@@ -767,9 +906,19 @@ class RoomController extends AbstractController
                 response: 404,
                 description: 'Room not found',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
             )
@@ -860,12 +1009,32 @@ class RoomController extends AbstractController
                 ]
             ),
             new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
+                    ]
+                )
+            ),
+            new OA\Response(
                 response: 404,
                 description: 'Room or image not found',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
             )
@@ -922,12 +1091,22 @@ class RoomController extends AbstractController
                 description: 'Room deleted successfully'
             ),
             new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
+                    ]
+                )
+            ),
+            new OA\Response(
                 response: 404,
                 description: 'Room not found',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
                     ]
                 )
             ),
@@ -935,9 +1114,19 @@ class RoomController extends AbstractController
                 response: 409,
                 description: 'Room cannot be deleted due to existing bookings',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string')
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room cannot be deleted due to existing bookings')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
             )
@@ -986,24 +1175,42 @@ class RoomController extends AbstractController
                 response: 200,
                 description: 'Room favorite status toggled',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
-                        new OA\Property(property: 'isFavorite', type: 'boolean', description: 'Whether the room is now favorited'),
-                        new OA\Property(property: 'message', type: 'string')
-                    ],
-                    example: [
-                        'isFavorite' => true,
-                        'message' => 'Room added to favorites'
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room added to favorites'),
+                        new OA\Property(property: 'isFavorite', type: 'boolean', description: 'Whether the room is now favorited', example: true)
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
                     ]
                 )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthorized'
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Room not found'
+                description: 'Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
             )
         ]
     )]

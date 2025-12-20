@@ -42,18 +42,13 @@ RUN cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 # Custom PHP configuration
 COPY docker/php/custom.dev.ini $PHP_INI_DIR/conf.d/custom.ini
 
-# Symfony CLI (optional - bardzo przydatne w dev)
-RUN curl -sS https://get.symfony.com/cli/installer | bash \
-    && mv /root/.symfony5/bin/symfony /usr/local/bin/symfony
-
 # Ustawienie katalogu roboczego
 WORKDIR /var/www/html
 
-# Nadaj odpowiednie uprawnienia
-RUN chown -R www-data:www-data /var/www/html
-
-# W dev mode zostajemy jako root dla wygody
-# USER www-data
+# Ustaw odpowiednie uprawnienia dla uploadzów
+RUN mkdir -p /var/www/html/public/uploads/rooms \
+    && chown -R www-data:www-data /var/www/html/public/uploads \
+    && chmod -R 775 /var/www/html/public/uploads
 
 EXPOSE 9000
 

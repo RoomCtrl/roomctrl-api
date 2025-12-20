@@ -5,22 +5,27 @@ declare(strict_types=1);
 namespace App\Feature\Organization\Controller;
 
 use App\Feature\Organization\Service\OrganizationService;
+use App\Feature\Organization\DTO\CreateOrganizationDTO;
+use App\Feature\Organization\DTO\UpdateOrganizationDTO;
+use App\Common\Utility\ValidationErrorFormatter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use OpenApi\Attributes as OA;
+use Exception;
+use InvalidArgumentException;
 
 #[Route('/organizations')]
 #[OA\Tag(name: 'Organizations')]
 class OrganizationController extends AbstractController
 {
-    private OrganizationService $organizationService;
-
-    public function __construct(OrganizationService $organizationService)
-    {
-        $this->organizationService = $organizationService;
+    public function __construct(
+        private readonly OrganizationService $organizationService,
+        private readonly ValidatorInterface $validator
+    ) {
     }
 
     #[Route('', name: 'organizations_list', methods: ['GET'])]
@@ -139,7 +144,7 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
@@ -196,7 +201,16 @@ class OrganizationController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
                         new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string'))
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'email'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'The email "invalid" is not a valid email.')
+                                ]
+                            )
+                        )
                     ]
                 )
             ),
@@ -216,28 +230,37 @@ class OrganizationController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!$data) {
+        if (!is_array($data)) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid JSON'
             ], 400);
         }
 
-        $result = $this->organizationService->createOrganization($data);
+        $dto = CreateOrganizationDTO::fromArray($data);
 
-        if (!$result['success']) {
+        $violations = $this->validator->validate($dto);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
+        }
+
+        try {
+            $result = $this->organizationService->createOrganization($data);
+
             return $this->json([
                 'code' => $result['code'],
                 'message' => $result['message'],
-                'errors' => $result['errors'] ?? null
+                'id' => $result['id']
             ], $result['code']);
+        } catch (Exception $e) {
+            return $this->json([
+                'code' => 409,
+                'message' => $e->getMessage()
+            ], 409);
         }
-
-        return $this->json([
-            'code' => $result['code'],
-            'message' => $result['message'],
-            'id' => $result['id']
-        ], $result['code']);
     }
 
     #[Route('/{id}', name: 'organizations_update', methods: ['PUT', 'PATCH'], requirements: ['id' => '.+'])]
@@ -351,7 +374,16 @@ class OrganizationController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
                         new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'errors', type: 'array', items: new OA\Items(type: 'string'))
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string', example: 'email'),
+                                    new OA\Property(property: 'message', type: 'string', example: 'The email "invalid" is not a valid email.')
+                                ]
+                            )
+                        )
                     ]
                 )
             ),
@@ -381,7 +413,7 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'
@@ -399,33 +431,43 @@ class OrganizationController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
 
-        if (!$data) {
+        if (!is_array($data)) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid JSON'
             ], 400);
         }
 
-        $result = $this->organizationService->updateOrganization($organization, $data);
+        $dto = UpdateOrganizationDTO::fromArray($data);
 
-        if (!$result['success']) {
-            return $this->json([
-                'code' => $result['code'],
-                'message' => $result['message'],
-                'errors' => $result['errors'] ?? null
-            ], $result['code']);
+        $violations = $this->validator->validate($dto);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
         }
 
-        return $this->json([
-            'code' => $result['code'],
-            'message' => $result['message']
-        ], $result['code']);
+        try {
+            $result = $this->organizationService->updateOrganization($organization, $data);
+
+            return $this->json([
+                'code' => $result['code'],
+                'message' => $result['message']
+            ], $result['code']);
+        } catch (Exception $e) {
+            return $this->json([
+                'code' => 409,
+                'message' => $e->getMessage()
+            ], 409);
+        }
     }
 
     #[Route('/{id}', name: 'organizations_delete', methods: ['DELETE'], requirements: ['id' => '.+'])]
     #[OA\Delete(
         path: '/api/organizations/{id}',
         summary: 'Delete an organization',
+        description: 'Deletes an organization only if it has no assigned users. All associated bookings will be cancelled and kept in history.',
         security: [['Bearer' => []]],
         parameters: [
             new OA\Parameter(
@@ -439,7 +481,17 @@ class OrganizationController extends AbstractController
         responses: [
             new OA\Response(
                 response: 204,
-                description: 'Organization deleted successfully'
+                description: 'Organization deleted successfully (all associated bookings have been cancelled)'
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
+                    ]
+                )
             ),
             new OA\Response(
                 response: 404,
@@ -452,12 +504,32 @@ class OrganizationController extends AbstractController
                 )
             ),
             new OA\Response(
+                response: 409,
+                description: 'Conflict - Organization has assigned users',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'Cannot delete organization with assigned users. Please remove or reassign users first.')
+                    ]
+                )
+            ),
+            new OA\Response(
                 response: 401,
                 description: 'Unauthorized',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 401),
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Server error during deletion',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 500),
+                        new OA\Property(property: 'message', type: 'string', example: 'Failed to delete organization: ...')
                     ]
                 )
             )
@@ -467,7 +539,7 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return $this->json([
                 'code' => 400,
                 'message' => 'Invalid UUID format'

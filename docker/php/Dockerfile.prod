@@ -68,7 +68,9 @@ RUN composer dump-autoload --optimize --classmap-authoritative \
 # Ustaw odpowiednie uprawnienia
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
-    && chmod -R 775 /var/www/html/var
+    && chmod -R 775 /var/www/html/var \
+    && mkdir -p /var/www/html/public/uploads/rooms \
+    && chmod -R 775 /var/www/html/public/uploads
 
 # ==================== PRODUCTION STAGE ====================
 FROM php:8.4-fpm

@@ -17,6 +17,8 @@ services:
         condition: service_healthy
     networks:
       - roomctrl-network
+    volumes:
+      - uploads-data:/var/www/html/public/uploads/rooms
     healthcheck:
       test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
       interval: 30s
@@ -42,6 +44,7 @@ services:
       - ./docker/nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
       - nginx-logs:/var/log/nginx
+      - uploads-data:/var/www/html/public/uploads/rooms:ro
     depends_on:
       - roomctrl-php
     networks:
@@ -83,28 +86,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Redis - Cache & Sessions
-  roomctrl-redis:
-    container_name: roomctrl-redis-prod
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - roomctrl-redis-data-prod:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    networks:
-      - roomctrl-network
-    command: redis-server /usr/local/etc/redis/redis.conf
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-
   # Backup Service (optional - cron-based backup)
   roomctrl-backup:
     container_name: roomctrl-backup
@@ -138,11 +119,11 @@ networks:
 volumes:
   roomctrl-postgres-data-prod:
     driver: local
-  roomctrl-redis-data-prod:
-    driver: local
   postgres-backups:
     driver: local
   app-public:
     driver: local
   nginx-logs:
+    driver: local
+  uploads-data:
     driver: local

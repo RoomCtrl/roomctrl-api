@@ -24,6 +24,20 @@ class AuthRepository
         ]);
     }
 
+    public function findUserByEmail(string $email): ?User
+    {
+        return $this->entityManager->getRepository(User::class)->findOneBy([
+            'email' => $email
+        ]);
+    }
+
+    public function findUserByPhone(string $phone): ?User
+    {
+        return $this->entityManager->getRepository(User::class)->findOneBy([
+            'phone' => $phone
+        ]);
+    }
+
     public function findOrganizationByRegon(string $regon): ?Organization
     {
         return $this->entityManager->getRepository(Organization::class)->findOneBy([

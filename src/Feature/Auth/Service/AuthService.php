@@ -50,6 +50,16 @@ class AuthService
             throw new InvalidArgumentException('This username is already taken.');
         }
 
+        $existingUserEmail = $this->authRepository->findUserByEmail($dto->email);
+        if ($existingUserEmail) {
+            throw new InvalidArgumentException('This email is already registered.');
+        }
+
+        $existingUserPhone = $this->authRepository->findUserByPhone($dto->phone);
+        if ($existingUserPhone) {
+            throw new InvalidArgumentException('This phone number is already in use.');
+        }
+
         $existingOrganization = $this->authRepository->findOrganizationByRegon($dto->regon);
         if ($existingOrganization) {
             throw new InvalidArgumentException('This REGON is already registered.');

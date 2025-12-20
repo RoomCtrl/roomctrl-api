@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use LogicException;
 use OpenApi\Attributes as OA;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -181,6 +182,7 @@ class AuthController extends AbstractController
     #[OA\Post(
         path: '/api/register',
         summary: 'Register a new user and create organization',
+        security: [],
         requestBody: new OA\RequestBody(
             description: 'User registration data with organization details',
             required: true,
@@ -257,7 +259,8 @@ class AuthController extends AbstractController
     public function register(
         Request             $request,
         ValidatorInterface  $validator,
-        AuthService         $authService
+        AuthService         $authService,
+        LoggerInterface     $logger
     ): JsonResponse
     {
         $data = $this->decodeJsonRequest($request);
@@ -280,7 +283,8 @@ class AuthController extends AbstractController
         } catch (InvalidArgumentException $e) {
             return $this->createConflictResponse($e->getMessage());
 
-        } catch (Exception) {
+        } catch (Exception $e) {
+            $logger->error('Registration error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->createServerErrorResponse();
         }
     }

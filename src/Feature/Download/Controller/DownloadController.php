@@ -6,10 +6,10 @@ namespace App\Feature\Download\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use OpenApi\Attributes as OA;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 #[OA\Tag(name: 'Downloads')]
 class DownloadController extends AbstractController
@@ -32,13 +32,14 @@ class DownloadController extends AbstractController
                 description: 'File not found',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Android application file not found')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Android application file not found')
                     ]
                 )
             )
         ]
     )]
-    public function downloadAndroid(): BinaryFileResponse
+    public function downloadAndroid(): BinaryFileResponse|JsonResponse
     {
         $publicDir = $this->getParameter('kernel.project_dir') . '/public';
         $androidDir = $publicDir . '/android';
@@ -46,13 +47,19 @@ class DownloadController extends AbstractController
         $files = glob($androidDir . '/*');
 
         if (empty($files)) {
-            throw new NotFoundHttpException('Android application file not found');
+            return $this->json([
+                'code' => 404,
+                'message' => 'Android application file not found'
+            ], 404);
         }
 
         $filePath = $files[0];
 
         if (!file_exists($filePath)) {
-            throw new NotFoundHttpException('Android application file not found');
+            return $this->json([
+                'code' => 404,
+                'message' => 'Android application file not found'
+            ], 404);
         }
 
         $response = new BinaryFileResponse($filePath);
@@ -82,13 +89,14 @@ class DownloadController extends AbstractController
                 description: 'File not found',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'iOS application file not found')
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'iOS application file not found')
                     ]
                 )
             )
         ]
     )]
-    public function downloadIos(): BinaryFileResponse
+    public function downloadIos(): BinaryFileResponse|JsonResponse
     {
         $publicDir = $this->getParameter('kernel.project_dir') . '/public';
         $iosDir = $publicDir . '/ios';
@@ -96,13 +104,19 @@ class DownloadController extends AbstractController
         $files = glob($iosDir . '/*');
 
         if (empty($files)) {
-            throw new NotFoundHttpException('iOS application file not found');
+            return $this->json([
+                'code' => 404,
+                'message' => 'iOS application file not found'
+            ], 404);
         }
 
         $filePath = $files[0];
 
         if (!file_exists($filePath)) {
-            throw new NotFoundHttpException('iOS application file not found');
+            return $this->json([
+                'code' => 404,
+                'message' => 'iOS application file not found'
+            ], 404);
         }
 
         $response = new BinaryFileResponse($filePath);

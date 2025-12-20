@@ -343,7 +343,117 @@ class BookingController extends AbstractController
         }
     }
 
-    #[Route('/{id}', name: 'bookings_update', methods: ['PATCH'])]
+    #[Route('/{id}', name: 'bookings_update', methods: ['PUT', 'PATCH'])]
+    #[OA\Put(
+        path: '/api/bookings/{id}',
+        summary: 'Update an existing booking',
+        description: 'Updates booking details. Only the booking owner or admin can update. Cannot update cancelled or completed bookings. Cannot update to past dates. Validates for conflicts and date constraints.',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                in: 'path',
+                required: true,
+                description: 'UUID of the booking to update',
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            description: 'Booking data to update',
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'title', type: 'string', minLength: 3, maxLength: 255, example: 'Updated Meeting Title'),
+                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '019afaf8-7edc-7935-9afc-d94a15e0e7ed'),
+                    new OA\Property(property: 'startedAt', type: 'string', format: 'date-time', example: '2025-12-08T13:16:23', description: 'ISO 8601 format'),
+                    new OA\Property(property: 'endedAt', type: 'string', format: 'date-time', example: '2025-12-08T15:15:23', description: 'ISO 8601 format'),
+                    new OA\Property(property: 'participantsCount', type: 'integer', minimum: 1, example: 8),
+                    new OA\Property(property: 'participantIds', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true, example: ['019afaf8-8087-793e-83e8-e83bab4145c0']),
+                    new OA\Property(property: 'isPrivate', type: 'boolean', example: false)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Booking updated successfully',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'Booking updated successfully'),
+                        new OA\Property(
+                            property: 'data',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                new OA\Property(property: 'title', type: 'string'),
+                                new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
+                                new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
+                                new OA\Property(property: 'participantsCount', type: 'integer'),
+                                new OA\Property(property: 'participants', type: 'array', items: new OA\Items(type: 'object')),
+                                new OA\Property(property: 'isPrivate', type: 'boolean'),
+                                new OA\Property(property: 'status', type: 'string'),
+                                new OA\Property(property: 'room', type: 'object'),
+                                new OA\Property(property: 'user', type: 'object'),
+                                new OA\Property(property: 'createdAt', type: 'string', format: 'date-time')
+                            ]
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Validation error, Invalid JSON, or Date constraints',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Cannot update cancelled/completed booking or not authorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'You are not authorized to update this booking')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Not found - Booking or Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Booking not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 409,
+                description: 'Conflict - Time slot already booked',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 409),
+                        new OA\Property(property: 'message', type: 'string', example: 'The room is already booked for this time slot')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
+        ]
+    )]
     #[OA\Patch(
         path: '/api/bookings/{id}',
         summary: 'Partially update an existing booking',
@@ -591,7 +701,42 @@ class BookingController extends AbstractController
                                 new OA\Property(property: 'title', type: 'string'),
                                 new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
                                 new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
-                                new OA\Property(property: 'status', type: 'string', example: 'cancelled')
+                                new OA\Property(property: 'participantsCount', type: 'integer'),
+                                new OA\Property(
+                                    property: 'participants',
+                                    type: 'array',
+                                    items: new OA\Items(
+                                        properties: [
+                                            new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                            new OA\Property(property: 'username', type: 'string'),
+                                            new OA\Property(property: 'firstName', type: 'string'),
+                                            new OA\Property(property: 'lastName', type: 'string'),
+                                            new OA\Property(property: 'email', type: 'string', format: 'email')
+                                        ]
+                                    )
+                                ),
+                                new OA\Property(property: 'isPrivate', type: 'boolean'),
+                                new OA\Property(property: 'status', type: 'string', example: 'cancelled'),
+                                new OA\Property(
+                                    property: 'room',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                        new OA\Property(property: 'roomName', type: 'string'),
+                                        new OA\Property(property: 'location', type: 'string')
+                                    ]
+                                ),
+                                new OA\Property(
+                                    property: 'user',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'id', type: 'string', format: 'uuid'),
+                                        new OA\Property(property: 'username', type: 'string'),
+                                        new OA\Property(property: 'firstName', type: 'string'),
+                                        new OA\Property(property: 'lastName', type: 'string')
+                                    ]
+                                ),
+                                new OA\Property(property: 'createdAt', type: 'string', format: 'date-time')
                             ]
                         )
                     ]

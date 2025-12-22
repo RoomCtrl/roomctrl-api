@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20251220141749 extends AbstractMigration
+final class Version20251222233803 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -33,7 +33,7 @@ final class Version20251220141749 extends AbstractMigration
         $this->addSql('CREATE UNIQUE INDEX UNIQ_427C1C7FE7927C74 ON organizations (email)');
         $this->addSql('CREATE TABLE room_statuses (id UUID NOT NULL, status VARCHAR(20) NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, room_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_EB16DED554177093 ON room_statuses (room_id)');
-        $this->addSql('CREATE TABLE rooms (id UUID NOT NULL, room_name VARCHAR(100) NOT NULL, capacity INT NOT NULL, size DOUBLE PRECISION NOT NULL, location VARCHAR(255) NOT NULL, access VARCHAR(50) NOT NULL, description TEXT DEFAULT NULL, lighting VARCHAR(100) DEFAULT NULL, air_conditioning JSON DEFAULT NULL, image_path VARCHAR(255) DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
+        $this->addSql('CREATE TABLE rooms (id UUID NOT NULL, room_name VARCHAR(100) NOT NULL, capacity INT NOT NULL, size DOUBLE PRECISION NOT NULL, location VARCHAR(255) NOT NULL, access VARCHAR(50) NOT NULL, description TEXT DEFAULT NULL, lighting VARCHAR(100) DEFAULT NULL, air_conditioning JSON DEFAULT NULL, image_paths JSON DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_7CA11A9632C8A3DE ON rooms (organization_id)');
         $this->addSql('CREATE TABLE users (id UUID NOT NULL, username VARCHAR(180) NOT NULL, roles JSON NOT NULL, password VARCHAR(255) NOT NULL, first_name VARCHAR(255) NOT NULL, last_name VARCHAR(255) NOT NULL, email VARCHAR(100) NOT NULL, phone VARCHAR(20) NOT NULL, reset_token VARCHAR(64) DEFAULT NULL, reset_token_expires_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, organization_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_1483A5E9F85E0677 ON users (username)');

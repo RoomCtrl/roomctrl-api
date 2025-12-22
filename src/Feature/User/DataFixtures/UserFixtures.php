@@ -34,7 +34,7 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
             $this->getReference(OrganizationFixtures::ORG_TECH, Organization::class),
         ];
 
-        for ($i = 1; $i <= 10; $i++) {
+        for ($i = 1; $i <= 100; $i++) {
             $user = new User();
             $user->setUsername(sprintf('user%d', $i));
             $user->setFirstName($faker->firstName());
@@ -42,13 +42,14 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
             $user->setEmail(sprintf('user%d@roomctrl.com', $i));
             $user->setPhone($faker->phoneNumber());
 
-            if ($i === 1) {
+            $organizationIndex = ($i - 1) % 3;
+            $user->setOrganization($organizations[$organizationIndex]);
+
+            if ($i === 1 || $i === 34 || $i === 67) {
                 $user->setRoles(['ROLE_ADMIN', 'ROLE_USER']);
             } else {
                 $user->setRoles(['ROLE_USER']);
             }
-
-            $user->setOrganization($organizations[($i - 1) % 3]);
 
             $hashedPassword = $this->passwordHasher->hashPassword($user, 'P@ssw0rd1');
             $user->setPassword($hashedPassword);
@@ -57,6 +58,8 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
 
             if ($i === 1) {
                 $this->addReference(self::USER_REFERENCE, $user);
+            } else {
+                $this->addReference(sprintf('user-%d', $i), $user);
             }
         }
 

@@ -55,8 +55,8 @@ class Room
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $airConditioning = null;
 
-    #[ORM\Column(type: 'string', length: 255, nullable: true)]
-    private ?string $imagePath = null;
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $imagePaths = null;
 
     #[ORM\ManyToOne(targetEntity: Organization::class)]
     #[ORM\JoinColumn(nullable: false)]
@@ -224,14 +224,14 @@ class Room
         return $this;
     }
 
-    public function getImagePath(): ?string
+    public function getImagePaths(): ?array
     {
-        return $this->imagePath;
+        return $this->imagePaths;
     }
 
-    public function setImagePath(?string $imagePath): self
+    public function setImagePaths(?array $imagePaths): self
     {
-        $this->imagePath = $imagePath;
+        $this->imagePaths = $imagePaths;
         return $this;
     }
 

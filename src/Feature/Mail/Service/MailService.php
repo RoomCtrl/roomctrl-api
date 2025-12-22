@@ -82,6 +82,58 @@ class MailService
         return $this->sendEmail($emailData);
     }
 
+    public function sendWelcomeEmail($user, $organization): void
+    {
+        $html = $this->twig->render('emails/welcome_email.html.twig', [
+            'user' => $user,
+            'organization' => $organization,
+        ]);
+
+        $email = (new Email())
+            ->from($this->fromAddress)
+            ->to($user->getEmail())
+            ->subject('Welcome to RoomCtrl')
+            ->html($html);
+
+        $this->mailer->send($email);
+    }
+
+    public function sendBookingConfirmation($user, $booking, $room, array $participants = []): void
+    {
+        $html = $this->twig->render('emails/booking_confirmation.html.twig', [
+            'user' => $user,
+            'booking' => $booking,
+            'room' => $room,
+            'participants' => $participants,
+        ]);
+
+        $email = (new Email())
+            ->from($this->fromAddress)
+            ->to($user->getEmail())
+            ->subject('Booking Confirmation: ' . $booking->getTitle())
+            ->html($html);
+
+        $this->mailer->send($email);
+    }
+
+    public function sendParticipantInvitation($participant, $booking, $room, $organizer): void
+    {
+        $html = $this->twig->render('emails/participant_invitation.html.twig', [
+            'participant' => $participant,
+            'booking' => $booking,
+            'room' => $room,
+            'organizer' => $organizer,
+        ]);
+
+        $email = (new Email())
+            ->from($this->fromAddress)
+            ->to($participant->getEmail())
+            ->subject('Meeting Invitation: ' . $booking->getTitle())
+            ->html($html);
+
+        $this->mailer->send($email);
+    }
+
     private function formatContactMessage(array $data): string
     {
         return "Message from contact form:\n\n" .

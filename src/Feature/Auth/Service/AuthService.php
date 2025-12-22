@@ -7,6 +7,7 @@ namespace App\Feature\Auth\Service;
 use App\Feature\Auth\DTO\RegisterRequestDTO;
 use App\Feature\Auth\DTO\UserInfoDTO;
 use App\Feature\Auth\Repository\AuthRepository;
+use App\Feature\Mail\Service\MailService;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
 use InvalidArgumentException;
@@ -16,13 +17,16 @@ class AuthService
 {
     private AuthRepository $authRepository;
     private UserPasswordHasherInterface $passwordHasher;
+    private MailService $mailService;
 
     public function __construct(
         AuthRepository $authRepository,
-        UserPasswordHasherInterface $passwordHasher
+        UserPasswordHasherInterface $passwordHasher,
+        MailService $mailService
     ) {
         $this->authRepository = $authRepository;
         $this->passwordHasher = $passwordHasher;
+        $this->mailService = $mailService;
     }
 
     public function getCurrentUserInfo(User $user, bool $withOrganization = false): array
@@ -39,6 +43,8 @@ class AuthService
         $user = $this->createUser($dto, $organization);
 
         $this->authRepository->saveMultipleAndFlush([$organization, $user]);
+
+        $this->mailService->sendWelcomeEmail($user, $organization);
 
         return $user;
     }
@@ -90,6 +96,7 @@ class AuthService
         $user->setEmail(strip_tags($dto->email));
         $user->setPhone(strip_tags($dto->phone));
         $user->setOrganization($organization);
+        $user->setRoles(['ROLE_ADMIN']);
 
         $hashedPassword = $this->passwordHasher->hashPassword($user, $dto->password);
         $user->setPassword($hashedPassword);

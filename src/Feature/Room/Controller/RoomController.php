@@ -81,7 +81,13 @@ class RoomController extends AbstractController
                                     new OA\Property(property: 'max', type: 'number')
                                 ]
                             ),
-                            new OA\Property(property: 'imagePath', type: 'string', nullable: true, description: 'Path to uploaded image or PDF file'),
+                            new OA\Property(
+                                property: 'imagePaths',
+                                type: 'array',
+                                items: new OA\Items(type: 'string'),
+                                nullable: true,
+                                description: 'Array of paths to uploaded images or PDF files'
+                            ),
                             new OA\Property(
                                 property: 'equipment',
                                 type: 'array',
@@ -201,7 +207,12 @@ class RoomController extends AbstractController
                                     new OA\Property(property: 'max', type: 'number')
                                 ]
                             ),
-                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'imagePaths',
+                                type: 'array',
+                                items: new OA\Items(type: 'string'),
+                                nullable: true
+                            ),
                             new OA\Property(
                                 property: 'equipment',
                                 type: 'array',
@@ -280,7 +291,12 @@ class RoomController extends AbstractController
                                     new OA\Property(property: 'max', type: 'number')
                                 ]
                             ),
-                            new OA\Property(property: 'imagePath', type: 'string', nullable: true),
+                            new OA\Property(
+                                property: 'imagePaths',
+                                type: 'array',
+                                items: new OA\Items(type: 'string'),
+                                nullable: true
+                            ),
                             new OA\Property(
                                 property: 'equipment',
                                 type: 'array',
@@ -381,7 +397,13 @@ class RoomController extends AbstractController
                                 new OA\Property(property: 'max', type: 'number')
                             ]
                         ),
-                        new OA\Property(property: 'imagePath', type: 'string', nullable: true, description: 'Path to uploaded image or PDF file'),
+                        new OA\Property(
+                            property: 'imagePaths',
+                            type: 'array',
+                            items: new OA\Items(type: 'string'),
+                            nullable: true,
+                            description: 'Array of paths to uploaded images or PDF files'
+                        ),
                         new OA\Property(
                             property: 'equipment',
                             type: 'array',
@@ -858,20 +880,20 @@ class RoomController extends AbstractController
     #[Route('/{id}/upload', name: 'rooms_upload_image', methods: ['POST'])]
     #[OA\Post(
         path: '/api/rooms/{id}/upload',
-        summary: 'Upload image or PDF for a room',
+        summary: 'Upload one or multiple images/PDFs for a room',
         security: [['Bearer' => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\MediaType(
                 mediaType: 'multipart/form-data',
                 schema: new OA\Schema(
-                    required: ['file'],
+                    required: ['files[]'],
                     properties: [
                         new OA\Property(
-                            property: 'file',
-                            type: 'string',
-                            format: 'binary',
-                            description: 'Image file (JPG, PNG) or PDF document'
+                            property: 'files[]',
+                            type: 'array',
+                            items: new OA\Items(type: 'string', format: 'binary'),
+                            description: 'One or multiple image files (JPG, PNG) or PDF documents'
                         )
                     ]
                 )
@@ -883,18 +905,23 @@ class RoomController extends AbstractController
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'File uploaded successfully',
+                description: 'Files uploaded successfully',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 200),
-                        new OA\Property(property: 'message', type: 'string', example: 'File uploaded successfully'),
-                        new OA\Property(property: 'imagePath', type: 'string', example: '/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567890.jpg')
+                        new OA\Property(property: 'message', type: 'string', example: 'Files uploaded successfully'),
+                        new OA\Property(
+                            property: 'imagePaths',
+                            type: 'array',
+                            items: new OA\Items(type: 'string'),
+                            example: ['/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567890.jpg', '/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567891.png']
+                        )
                     ]
                 )
             ),
             new OA\Response(
                 response: 400,
-                description: 'Invalid file type or no file uploaded',
+                description: 'Invalid file type or no files uploaded',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 400),
@@ -943,57 +970,74 @@ class RoomController extends AbstractController
             ], 404);
         }
 
-        $file = $request->files->get('file');
-        if (!$file) {
+        $files = $request->files->get('files');
+        if (!$files) {
             return new JsonResponse([
                 'code' => 400,
-                'message' => 'No file uploaded'
+                'message' => 'No files uploaded'
             ], 400);
         }
-        
+
+        // Convert single file to array for uniform processing
+        if (!is_array($files)) {
+            $files = [$files];
+        }
+
         $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-        
-        $mimeType = $file->getMimeType();
-        $extension = $file->getClientOriginalExtension();
+        $uploadedPaths = [];
 
-        if (!in_array($mimeType, $allowedMimeTypes) || !in_array(strtolower($extension), $allowedExtensions)) {
+        foreach ($files as $file) {
+            if (!$file) {
+                continue;
+            }
+
+            $mimeType = $file->getMimeType();
+            $extension = $file->getClientOriginalExtension();
+
+            if (!in_array($mimeType, $allowedMimeTypes) || !in_array(strtolower($extension), $allowedExtensions)) {
+                return new JsonResponse([
+                    'code' => 400,
+                    'message' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
+                ], 400);
+            }
+
+            $uploadDir = $this->getParameter('kernel.project_dir') . '/public/uploads/rooms';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $fileName = $uuid->toRfc4122() . '_' . time() . '_' . uniqid() . '.' . $extension;
+            $file->move($uploadDir, $fileName);
+
+            $imagePath = '/uploads/rooms/' . $fileName;
+            $uploadedPaths[] = $imagePath;
+        }
+
+        if (empty($uploadedPaths)) {
             return new JsonResponse([
                 'code' => 400,
-                'message' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
+                'message' => 'No valid files were uploaded'
             ], 400);
         }
-        
-        if ($room->getImagePath()) {
-            $oldFilePath = $this->getParameter('kernel.project_dir') . '/public' . $room->getImagePath();
-            if (file_exists($oldFilePath)) {
-                unlink($oldFilePath);
-            }
-        }
 
-        $uploadDir = $this->getParameter('kernel.project_dir') . '/public/uploads/rooms';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
-
-        $fileName = $uuid->toRfc4122() . '_' . time() . '.' . $extension;
-        $file->move($uploadDir, $fileName);
-        
-        $imagePath = '/uploads/rooms/' . $fileName;
-        $room->setImagePath($imagePath);
+        // Get existing image paths and merge with new ones
+        $existingPaths = $room->getImagePaths() ?? [];
+        $allPaths = array_merge($existingPaths, $uploadedPaths);
+        $room->setImagePaths($allPaths);
         $this->entityManager->flush();
 
         return new JsonResponse([
             'code' => 200,
-            'message' => 'File uploaded successfully',
-            'imagePath' => $imagePath
+            'message' => 'Files uploaded successfully',
+            'imagePaths' => $uploadedPaths
         ]);
     }
 
-    #[Route('/{id}/image', name: 'rooms_get_image', methods: ['GET'])]
+    #[Route('/{id}/images', name: 'rooms_get_images', methods: ['GET'])]
     #[OA\Get(
-        path: '/api/rooms/{id}/image',
-        summary: 'Get room image or PDF',
+        path: '/api/rooms/{id}/images',
+        summary: 'Get all room images/PDFs',
         security: [['Bearer' => []]],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
@@ -1001,7 +1045,88 @@ class RoomController extends AbstractController
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Returns the room image or PDF file',
+                description: 'Returns list of room images and PDFs',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(
+                            property: 'imagePaths',
+                            type: 'array',
+                            items: new OA\Items(type: 'string'),
+                            example: ['/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567890.jpg', '/uploads/rooms/01234567-89ab-cdef-0123-456789abcdef_1234567891.png']
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - Invalid UUID format',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid UUID format')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getImages(string $id): JsonResponse
+    {
+        try {
+            $uuid = Uuid::fromString($id);
+        } catch (Exception $e) {
+            return new JsonResponse(['code' => 400, 'message' => 'Invalid UUID format'], 400);
+        }
+
+        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        if (!$room) {
+            return new JsonResponse([
+                'code' => 404,
+                'message' => 'Room not found'
+            ], 404);
+        }
+
+        $imagePaths = $room->getImagePaths() ?? [];
+
+        return new JsonResponse([
+            'code' => 200,
+            'imagePaths' => $imagePaths
+        ]);
+    }
+
+    #[Route('/{id}/image/{imageIndex}', name: 'rooms_get_image', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/rooms/{id}/image/{imageIndex}',
+        summary: 'Get a specific room image or PDF by index',
+        security: [['Bearer' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'imageIndex', in: 'path', required: true, schema: new OA\Schema(type: 'integer'), description: 'Zero-based index of the image')
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns the requested room image or PDF file',
                 content: [
                     new OA\MediaType(mediaType: 'image/jpeg'),
                     new OA\MediaType(mediaType: 'image/png'),
@@ -1040,7 +1165,7 @@ class RoomController extends AbstractController
             )
         ]
     )]
-    public function getImage(string $id): JsonResponse|BinaryFileResponse
+    public function getImage(string $id, int $imageIndex): JsonResponse|BinaryFileResponse
     {
         try {
             $uuid = Uuid::fromString($id);
@@ -1056,14 +1181,16 @@ class RoomController extends AbstractController
             ], 404);
         }
 
-        if (!$room->getImagePath()) {
+        $imagePaths = $room->getImagePaths() ?? [];
+        
+        if (empty($imagePaths) || !isset($imagePaths[$imageIndex])) {
             return new JsonResponse([
                 'code' => 404,
-                'message' => 'No image uploaded for this room'
+                'message' => 'Image not found'
             ], 404);
         }
 
-        $filePath = $this->getParameter('kernel.project_dir') . '/public' . $room->getImagePath();
+        $filePath = $this->getParameter('kernel.project_dir') . '/public' . $imagePaths[$imageIndex];
         if (!file_exists($filePath)) {
             return new JsonResponse([
                 'code' => 404,

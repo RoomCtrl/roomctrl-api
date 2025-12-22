@@ -11,8 +11,10 @@ use App\Feature\Booking\DTO\CreateBookingDTO;
 use App\Feature\Booking\DTO\UpdateBookingDTO;
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Booking\Repository\BookingRepository;
+use App\Feature\Mail\Service\MailService;
 use App\Feature\Room\Entity\Room;
 use App\Feature\User\Entity\User;
+use App\Feature\User\Repository\UserRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -23,7 +25,9 @@ class BookingService
 {
     public function __construct(
         private readonly BookingRepository $bookingRepository,
-        private readonly EntityManagerInterface $entityManager
+        private readonly EntityManagerInterface $entityManager,
+        private readonly MailService $mailService,
+        private readonly UserRepository $userRepository
     ) {
     }
 
@@ -60,6 +64,14 @@ class BookingService
         }
 
         $this->bookingRepository->save($booking, true);
+
+        // Send confirmation email to organizer
+        $this->mailService->sendBookingConfirmation($user, $booking, $room, $booking->getParticipants()->toArray());
+
+        // Send invitation emails to participants
+        foreach ($booking->getParticipants() as $participant) {
+            $this->mailService->sendParticipantInvitation($participant, $booking, $room, $user);
+        }
 
         return $booking;
     }

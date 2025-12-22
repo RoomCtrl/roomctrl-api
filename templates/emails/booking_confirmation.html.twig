@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmation - RoomCtrl</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f9f9f9;
+            color: #1f1f1f;
+            margin: 0;
+            padding: 40px 0;
+        }
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #f7f7f7;
+            padding: 30px 20px 10px;
+            text-align: center;
+            border-bottom: 1px solid #e6e6e6;
+        }
+        .header h1 {
+            margin: 0;
+            color: #d72f3f;
+            font-size: 24px;
+        }
+        .content {
+            padding: 20px 30px;
+            font-size: 16px;
+            line-height: 1.6;
+            background-color: #ffffff;
+        }
+        .booking-details {
+            background-color: #f7f7f7;
+            border: 1px solid #e6e6e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #e6e6e6;
+            padding: 10px 0;
+            margin: 10px 0;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #333;
+            flex: 1;
+        }
+        .detail-value {
+            color: #666;
+            flex: 1;
+            text-align: right;
+        }
+        .participants-section {
+            margin-top: 15px;
+        }
+        .participants-header {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .participant {
+            background-color: #fff;
+            border-left: 3px solid #d72f3f;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 2px;
+        }
+        .footer {
+            background-color: #1B2532;
+            color: #cccccc;
+            text-align: center;
+            font-size: 12px;
+            padding: 20px 30px;
+        }
+        a {
+            color: #d72f3f;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Booking Confirmation</h1>
+        </div>
+        <div class="content">
+            <p>Hi {{ user.firstName }},</p>
+            
+            <p>Your room booking has been confirmed! Here are the details:</p>
+            
+            <div class="booking-details">
+                <div class="detail-row">
+                    <span class="detail-label">Meeting Title:</span>
+                    <span class="detail-value">{{ booking.title }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Room:</span>
+                    <span class="detail-value">{{ room.roomName }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Location:</span>
+                    <span class="detail-value">{{ room.location }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Start Time:</span>
+                    <span class="detail-value">{{ booking.startedAt|date('d/m/Y H:i') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">End Time:</span>
+                    <span class="detail-value">{{ booking.endedAt|date('d/m/Y H:i') }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Expected Participants:</span>
+                    <span class="detail-value">{{ booking.participantsCount }}</span>
+                </div>
+                
+                {% if participants|length > 0 %}
+                <div class="participants-section">
+                    <div class="participants-header">Invited Participants:</div>
+                    {% for participant in participants %}
+                    <div class="participant">
+                        {{ participant.firstName }} {{ participant.lastName }} ({{ participant.email }})
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <p>Please note that the organizer will send invitations to the participants. You can manage your booking anytime through the RoomCtrl application.</p>
+            
+            <p>If you need to cancel or modify this booking, please do so as soon as possible to ensure other participants are notified in time.</p>
+        </div>
+        <div class="footer">
+            <p>This message was sent automatically. Please do not reply to this email.</p>
+            <p>&copy; 2025 RoomCtrl. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

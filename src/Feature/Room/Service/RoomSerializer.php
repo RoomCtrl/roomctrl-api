@@ -33,7 +33,7 @@ class RoomSerializer
             'description' => $room->getDescription(),
             'lighting' => $room->getLighting(),
             'airConditioning' => $room->getAirConditioning(),
-            'imagePath' => $room->getImagePath(),
+            'imagePaths' => $room->getImagePaths() ?? [],
             'equipment' => $this->serializeEquipment($room->getEquipment()->toArray())
         ];
 

@@ -40,9 +40,13 @@ readonly class UserService
     {
     }
 
-    public function getAllUsers(bool $withDetails = false): array
+    public function getAllUsers(bool $withDetails = false, ?Organization $organization = null): array
     {
-        $users = $this->userRepository->findAll();
+        if ($organization) {
+            $users = $this->userRepository->findBy(['organization' => $organization]);
+        } else {
+            $users = $this->userRepository->findAll();
+        }
 
         return array_map(
             fn(User $user) => UserResponseDTO::fromEntity($user, $withDetails)->toArray(),
@@ -99,6 +103,8 @@ readonly class UserService
         if (is_array($dto->roles)) {
             $user->setRoles($dto->roles);
         }
+
+        $user->setIsActive($dto->isActive);
 
         $this->userRepository->save($user, true);
 
@@ -162,6 +168,10 @@ readonly class UserService
             }
 
             $user->setOrganization($organization);
+        }
+
+        if ($dto->isActive !== null) {
+            $user->setIsActive($dto->isActive);
         }
 
         $this->userRepository->flush();

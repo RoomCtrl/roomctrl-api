@@ -863,6 +863,102 @@ class BookingController extends AbstractController
         return new JsonResponse($response->toArray());
     }
 
+    #[Route('/organization/count', name: 'bookings_organization_count', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/organization/count',
+        summary: 'Get booking statistics for user\'s organization',
+        description: 'Returns the total count and breakdown by status (active, completed, cancelled) of all bookings within the authenticated user\'s organization.',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Returns booking count statistics for the organization',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'count', type: 'integer', description: 'Total number of organization bookings', example: 150),
+                        new OA\Property(property: 'active', type: 'integer', description: 'Number of active bookings', example: 50),
+                        new OA\Property(property: 'completed', type: 'integer', description: 'Number of completed bookings', example: 80),
+                        new OA\Property(property: 'cancelled', type: 'integer', description: 'Number of cancelled bookings', example: 20)
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized - user not authenticated',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getOrganizationCount(): JsonResponse
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        $response = $this->bookingService->getBookingCountsByOrganization($user->getOrganization());
+
+        return new JsonResponse($response->toArray());
+    }
+
+    #[Route('/statistics/total', name: 'bookings_statistics_total', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/statistics/total',
+        summary: 'Get total booking statistics with time breakdown',
+        description: 'Returns the total number of bookings for the organization with breakdown by time periods: this month, this week, and today.',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Total booking statistics',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'total', type: 'integer', example: 847, description: 'Total number of all bookings'),
+                        new OA\Property(property: 'thisMonth', type: 'integer', example: 42, description: 'Bookings created this month'),
+                        new OA\Property(property: 'thisWeek', type: 'integer', example: 12, description: 'Bookings created this week'),
+                        new OA\Property(property: 'today', type: 'integer', example: 3, description: 'Bookings created today')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized - user not authenticated',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getTotalStats(): JsonResponse
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        $response = $this->bookingService->getTotalBookingStats($user->getOrganization());
+
+        return new JsonResponse($response->toArray());
+    }
+
     #[Route('/{id}', name: 'bookings_get', methods: ['GET'])]
     #[OA\Get(
         path: '/api/bookings/{id}',
@@ -934,5 +1030,73 @@ class BookingController extends AbstractController
                 'message' => $e->getMessage()
             ], 404);
         }
+    }
+
+    #[Route('/statistics/occupancy_rate', name: 'bookings_occupancy_rate', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/statistics/occupancy_rate',
+        summary: 'Get occupancy rate by day of week',
+        description: 'Returns the occupancy rate (percentage of booked time vs available time) for each day of the week for the authenticated user\'s organization. Assumes 12 working hours per day per room.',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Occupancy rate statistics by day of week',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(
+                        type: 'object',
+                        properties: [
+                            new OA\Property(
+                                property: 'dayOfWeek',
+                                type: 'string',
+                                description: 'Day of the week',
+                                enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                                example: 'monday'
+                            ),
+                            new OA\Property(
+                                property: 'occupancyRate',
+                                type: 'number',
+                                format: 'float',
+                                description: 'Occupancy rate as percentage (0-100)',
+                                example: 85.5
+                            )
+                        ]
+                    ),
+                    example: [
+                        ['dayOfWeek' => 'monday', 'occupancyRate' => 85.5],
+                        ['dayOfWeek' => 'tuesday', 'occupancyRate' => 87.2],
+                        ['dayOfWeek' => 'wednesday', 'occupancyRate' => 92.1],
+                        ['dayOfWeek' => 'thursday', 'occupancyRate' => 88.3],
+                        ['dayOfWeek' => 'friday', 'occupancyRate' => 95.0],
+                        ['dayOfWeek' => 'saturday', 'occupancyRate' => 45.2],
+                        ['dayOfWeek' => 'sunday', 'occupancyRate' => 30.1]
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized - missing or invalid authentication token',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getOccupancyRate(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $organization = $user->getOrganization();
+
+        $occupancyData = $this->bookingService->getOccupancyRateByDayOfWeek($organization);
+
+        $result = array_map(fn($dto) => $dto->toArray(), $occupancyData);
+
+        return new JsonResponse($result);
     }
 }

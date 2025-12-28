@@ -8,8 +8,6 @@
 /var/
 /vendor/
 /.env
-/.env.dev
-/.env.prod
 ###< symfony/framework-bundle ###
 
 ###> lexik/jwt-authentication-bundle ###

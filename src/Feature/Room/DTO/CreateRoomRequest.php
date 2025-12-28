@@ -51,7 +51,7 @@ class CreateRoomRequest
     ])]
     public array $equipment = [];
 
-    #[Assert\Choice(choices: ['available', 'occupied', 'maintenance'])]
+    #[Assert\Choice(choices: ['available', 'out_of_use'])]
     public ?string $status = 'available';
 
     public static function fromArray(array $data): self

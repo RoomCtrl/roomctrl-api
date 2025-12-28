@@ -6,6 +6,8 @@ namespace App\Feature\Room\Service;
 
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\Room\DTO\RoomIssueStatDTO;
+use App\Feature\Room\DTO\RoomUsageStatDTO;
 use App\Feature\Room\Entity\Equipment;
 use App\Feature\Room\Entity\Room;
 use App\Feature\Room\Entity\RoomStatus;
@@ -25,12 +27,22 @@ class RoomService
     }
 
     /**
-     * Get all rooms, optionally filtered by status
+     * Get all rooms, optionally filtered by status and organization
      * 
      * @return Room[]
      */
-    public function getAllRooms(?string $status = null): array
+    public function getAllRooms(?string $status = null, ?Organization $organization = null): array
     {
+        if ($organization) {
+            if ($status) {
+                return $this->roomRepository->findBy([
+                    'organization' => $organization,
+                    'roomStatus.status' => $status
+                ]);
+            }
+            return $this->roomRepository->findBy(['organization' => $organization]);
+        }
+
         if ($status) {
             return $this->roomRepository->findByStatus($status);
         }
@@ -291,5 +303,69 @@ class RoomService
         
         $this->entityManager->remove($room);
         $this->entityManager->flush();
+    }
+
+    /**
+     * @return array<RoomUsageStatDTO>
+     */
+    public function getMostUsedRooms(Organization $organization, int $limit = 5): array
+    {
+        $rooms = $this->roomRepository->getMostUsedRooms($organization, $limit);
+        $totalBookings = $this->roomRepository->getTotalBookingsCount($organization);
+
+        return array_map(function ($room) use ($totalBookings) {
+            $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
+            return new RoomUsageStatDTO(
+                $room['id']->toRfc4122(),
+                $room['name'],
+                (int) $room['bookingCount'],
+                $percentage
+            );
+        }, $rooms);
+    }
+
+    /**
+     * @return array<RoomUsageStatDTO>
+     */
+    public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
+    {
+        $rooms = $this->roomRepository->getLeastUsedRooms($organization, $limit);
+        $totalBookings = $this->roomRepository->getTotalBookingsCount($organization);
+
+        return array_map(function ($room) use ($totalBookings) {
+            $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
+            return new RoomUsageStatDTO(
+                $room['id']->toRfc4122(),
+                $room['name'],
+                (int) $room['bookingCount'],
+                $percentage
+            );
+        }, $rooms);
+    }
+
+    /**
+     * @return array<RoomIssueStatDTO>
+     */
+    public function getRoomsWithMostIssues(Organization $organization, int $limit = 5): array
+    {
+        $rooms = $this->roomRepository->getRoomsWithMostIssues($organization, $limit);
+
+        return array_map(function ($room) {
+            $issueCount = (int) $room['issueCount'];
+            
+            // Determine priority based on issue count
+            $priority = match (true) {
+                $issueCount >= 10 => 'high',
+                $issueCount >= 5 => 'medium',
+                default => 'low'
+            };
+
+            return new RoomIssueStatDTO(
+                $room['id']->toRfc4122(),
+                $room['name'],
+                $issueCount,
+                $priority
+            );
+        }, $rooms);
     }
 }

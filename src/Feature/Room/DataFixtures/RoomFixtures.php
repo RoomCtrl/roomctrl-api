@@ -188,7 +188,7 @@ class RoomFixtures extends Fixture implements DependentFixtureInterface
         $room301->setOrganization($organization);
         
         $status301 = new RoomStatus();
-        $status301->setStatus('occupied');
+        $status301->setStatus('out_of_use');
         $status301->setRoom($room301);
         $room301->setRoomStatus($status301);
         

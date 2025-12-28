@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Feature\Room\Repository;
 
 use App\Feature\Room\Entity\Room;
+use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -74,5 +75,59 @@ class RoomRepository extends ServiceEntityRepository
             ->setParameter('userId', $user->getId())
             ->getQuery()
             ->getResult();
+    }
+
+    public function getMostUsedRooms(Organization $organization, int $limit = 5): array
+    {
+        return $this->createQueryBuilder('r')
+            ->select('r.id', 'r.name', 'COUNT(b.id) as bookingCount')
+            ->leftJoin('r.bookings', 'b')
+            ->where('r.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->groupBy('r.id')
+            ->orderBy('bookingCount', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
+    {
+        return $this->createQueryBuilder('r')
+            ->select('r.id', 'r.name', 'COUNT(b.id) as bookingCount')
+            ->leftJoin('r.bookings', 'b')
+            ->where('r.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->groupBy('r.id')
+            ->orderBy('bookingCount', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function getRoomsWithMostIssues(Organization $organization, int $limit = 5): array
+    {
+        return $this->createQueryBuilder('r')
+            ->select('r.id', 'r.name', 'COUNT(i.id) as issueCount')
+            ->leftJoin('r.issues', 'i')
+            ->where('r.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->groupBy('r.id')
+            ->having('COUNT(i.id) > 0')
+            ->orderBy('issueCount', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function getTotalBookingsCount(Organization $organization): int
+    {
+        return (int) $this->createQueryBuilder('r')
+            ->select('COUNT(b.id)')
+            ->leftJoin('r.bookings', 'b')
+            ->where('r.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 }

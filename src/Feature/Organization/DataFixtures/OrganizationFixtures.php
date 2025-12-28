@@ -87,7 +87,7 @@ class OrganizationFixtures extends Fixture
             $room->setOrganization($org);
 
             $status = new RoomStatus();
-            $status->setStatus($faker->randomElement(['available', 'occupied', 'maintenance']));
+            $status->setStatus($faker->randomElement(['available', 'out_of_use']));
             $status->setRoom($room);
             $room->setRoomStatus($status);
 

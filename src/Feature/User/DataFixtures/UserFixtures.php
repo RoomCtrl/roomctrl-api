@@ -51,6 +51,13 @@ class UserFixtures extends Fixture implements DependentFixtureInterface
                 $user->setRoles(['ROLE_USER']);
             }
 
+            // Deaktywuj co 10. użytkownika dla testów
+            if ($i % 10 === 0) {
+                $user->setIsActive(false);
+            } else {
+                $user->setIsActive(true);
+            }
+
             $hashedPassword = $this->passwordHasher->hashPassword($user, 'P@ssw0rd1');
             $user->setPassword($hashedPassword);
 

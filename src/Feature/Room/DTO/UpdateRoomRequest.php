@@ -32,7 +32,7 @@ class UpdateRoomRequest
     #[Assert\Type('array')]
     public ?array $airConditioning = null;
 
-    #[Assert\Choice(choices: ['available', 'occupied', 'maintenance'])]
+    #[Assert\Choice(choices: ['available', 'out_of_use'])]
     public ?string $status = null;
 
     public static function fromArray(array $data): self

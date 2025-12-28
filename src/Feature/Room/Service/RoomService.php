@@ -317,7 +317,7 @@ class RoomService
             $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
             return new RoomUsageStatDTO(
                 $room['id']->toRfc4122(),
-                $room['name'],
+                $room['roomName'],
                 (int) $room['bookingCount'],
                 $percentage
             );
@@ -336,7 +336,7 @@ class RoomService
             $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
             return new RoomUsageStatDTO(
                 $room['id']->toRfc4122(),
-                $room['name'],
+                $room['roomName'],
                 (int) $room['bookingCount'],
                 $percentage
             );
@@ -362,7 +362,7 @@ class RoomService
 
             return new RoomIssueStatDTO(
                 $room['id']->toRfc4122(),
-                $room['name'],
+                $room['roomName'],
                 $issueCount,
                 $priority
             );

@@ -80,7 +80,7 @@ class RoomRepository extends ServiceEntityRepository
     public function getMostUsedRooms(Organization $organization, int $limit = 5): array
     {
         return $this->createQueryBuilder('r')
-            ->select('r.id', 'r.name', 'COUNT(b.id) as bookingCount')
+            ->select('r.id', 'r.roomName', 'COUNT(b.id) as bookingCount')
             ->leftJoin('r.bookings', 'b')
             ->where('r.organization = :organization')
             ->setParameter('organization', $organization)
@@ -94,7 +94,7 @@ class RoomRepository extends ServiceEntityRepository
     public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
     {
         return $this->createQueryBuilder('r')
-            ->select('r.id', 'r.name', 'COUNT(b.id) as bookingCount')
+            ->select('r.id', 'r.roomName', 'COUNT(b.id) as bookingCount')
             ->leftJoin('r.bookings', 'b')
             ->where('r.organization = :organization')
             ->setParameter('organization', $organization)
@@ -108,7 +108,7 @@ class RoomRepository extends ServiceEntityRepository
     public function getRoomsWithMostIssues(Organization $organization, int $limit = 5): array
     {
         return $this->createQueryBuilder('r')
-            ->select('r.id', 'r.name', 'COUNT(i.id) as issueCount')
+            ->select('r.id', 'r.roomName', 'COUNT(i.id) as issueCount')
             ->leftJoin('r.issues', 'i')
             ->where('r.organization = :organization')
             ->setParameter('organization', $organization)

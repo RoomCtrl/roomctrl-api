@@ -12,6 +12,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
+use App\Feature\Booking\Entity\Booking;
 
 #[ORM\Entity(repositoryClass: RoomRepository::class)]
 #[ORM\Table(name: "rooms")]
@@ -72,10 +73,14 @@ class Room
     #[ORM\ManyToMany(targetEntity: User::class, mappedBy: 'favoriteRooms')]
     private Collection $favoritedByUsers;
 
+    #[ORM\OneToMany(mappedBy: 'room', targetEntity: Booking::class)]
+    private Collection $bookings;
+
     public function __construct()
     {
         $this->equipment = new ArrayCollection();
         $this->favoritedByUsers = new ArrayCollection();
+        $this->bookings = new ArrayCollection();
     }
 
     public function getId(): ?Uuid
@@ -257,6 +262,35 @@ class Room
     {
         if ($this->favoritedByUsers->removeElement($user)) {
             $user->removeFavoriteRoom($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Booking>
+     */
+    public function getBookings(): Collection
+    {
+        return $this->bookings;
+    }
+
+    public function addBooking(Booking $booking): self
+    {
+        if (!$this->bookings->contains($booking)) {
+            $this->bookings->add($booking);
+            $booking->setRoom($this);
+        }
+
+        return $this;
+    }
+
+    public function removeBooking(Booking $booking): self
+    {
+        if ($this->bookings->removeElement($booking)) {
+            if ($booking->getRoom() === $this) {
+                $booking->setRoom(null);
+            }
         }
 
         return $this;

@@ -13,6 +13,7 @@ use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
 use App\Feature\Booking\Entity\Booking;
+use App\Feature\Issue\Entity\RoomIssue;
 
 #[ORM\Entity(repositoryClass: RoomRepository::class)]
 #[ORM\Table(name: "rooms")]
@@ -76,11 +77,15 @@ class Room
     #[ORM\OneToMany(mappedBy: 'room', targetEntity: Booking::class)]
     private Collection $bookings;
 
+    #[ORM\OneToMany(mappedBy: 'room', targetEntity: RoomIssue::class)]
+    private Collection $issues;
+
     public function __construct()
     {
         $this->equipment = new ArrayCollection();
         $this->favoritedByUsers = new ArrayCollection();
         $this->bookings = new ArrayCollection();
+        $this->issues = new ArrayCollection();
     }
 
     public function getId(): ?Uuid
@@ -290,6 +295,35 @@ class Room
         if ($this->bookings->removeElement($booking)) {
             if ($booking->getRoom() === $this) {
                 $booking->setRoom(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, RoomIssue>
+     */
+    public function getIssues(): Collection
+    {
+        return $this->issues;
+    }
+
+    public function addIssue(RoomIssue $issue): self
+    {
+        if (!$this->issues->contains($issue)) {
+            $this->issues->add($issue);
+            $issue->setRoom($this);
+        }
+
+        return $this;
+    }
+
+    public function removeIssue(RoomIssue $issue): self
+    {
+        if ($this->issues->removeElement($issue)) {
+            if ($issue->getRoom() === $this) {
+                $issue->setRoom(null);
             }
         }
 

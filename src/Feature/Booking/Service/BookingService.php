@@ -6,12 +6,15 @@ namespace App\Feature\Booking\Service;
 
 use App\Feature\Booking\DTO\BookingCountsResponseDTO;
 use App\Feature\Booking\DTO\BookingResponseDTO;
+use App\Feature\Booking\DTO\BookingTotalStatsResponseDTO;
 use App\Feature\Booking\DTO\CancelBookingResponseDTO;
 use App\Feature\Booking\DTO\CreateBookingDTO;
+use App\Feature\Booking\DTO\OccupancyRateByDayDTO;
 use App\Feature\Booking\DTO\UpdateBookingDTO;
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Booking\Repository\BookingRepository;
 use App\Feature\Mail\Service\MailService;
+use App\Feature\Organization\Entity\Organization;
 use App\Feature\Room\Entity\Room;
 use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
@@ -236,6 +239,45 @@ class BookingService
             $counts['completed'],
             $counts['cancelled']
         );
+    }
+
+    public function getBookingCountsByOrganization(Organization $organization): BookingCountsResponseDTO
+    {
+        $counts = $this->bookingRepository->getBookingCountsByOrganization($organization);
+
+        return new BookingCountsResponseDTO(
+            $counts['count'],
+            $counts['active'],
+            $counts['completed'],
+            $counts['cancelled']
+        );
+    }
+
+    public function getTotalBookingStats(Organization $organization): BookingTotalStatsResponseDTO
+    {
+        $stats = $this->bookingRepository->getTotalBookingStats($organization);
+
+        return new BookingTotalStatsResponseDTO(
+            $stats['total'],
+            $stats['thisMonth'],
+            $stats['thisWeek'],
+            $stats['today']
+        );
+    }
+
+    /**
+     * @return OccupancyRateByDayDTO[]
+     */
+    public function getOccupancyRateByDayOfWeek(Organization $organization): array
+    {
+        $occupancyData = $this->bookingRepository->getOccupancyRateByDayOfWeek($organization);
+        
+        $result = [];
+        foreach ($occupancyData as $dayName => $rate) {
+            $result[] = new OccupancyRateByDayDTO($dayName, $rate);
+        }
+        
+        return $result;
     }
 
     public function getBookingsList(): array

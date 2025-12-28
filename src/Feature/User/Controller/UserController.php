@@ -9,6 +9,7 @@ use App\Feature\User\DTO\CreateUserDTO;
 use App\Feature\User\DTO\PasswordResetConfirmDTO;
 use App\Feature\User\DTO\PasswordResetRequestDTO;
 use App\Feature\User\DTO\UpdateUserDTO;
+use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
 use App\Feature\User\Service\UserService;
 use Exception;
@@ -67,6 +68,7 @@ class UserController extends AbstractController
                             new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                             new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                             new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
+                            new OA\Property(property: 'isActive', type: 'boolean', example: true),
                             new OA\Property(
                                 property: 'organization',
                                 properties: [
@@ -96,8 +98,18 @@ class UserController extends AbstractController
     )]
     public function list(Request $request): JsonResponse
     {
+        /** @var User|null $currentUser */
+        $currentUser = $this->getUser();
+        
+        if (!$currentUser) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
         $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
-        $users = $this->userService->getAllUsers($withDetails);
+        $users = $this->userService->getAllUsers($withDetails, $currentUser->getOrganization());
 
         return $this->json($users, 200);
     }
@@ -136,6 +148,7 @@ class UserController extends AbstractController
                         new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                         new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
+                        new OA\Property(property: 'isActive', type: 'boolean', example: true),
                         new OA\Property(
                             property: 'organization',
                             properties: [
@@ -169,11 +182,31 @@ class UserController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Access denied - User belongs to different organization',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
+                    ]
+                )
             )
         ]
     )]
     public function get(string $id, Request $request): JsonResponse
     {
+        /** @var User|null $currentUser */
+        $currentUser = $this->getUser();
+        
+        if (!$currentUser) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
@@ -191,6 +224,14 @@ class UserController extends AbstractController
                 'code' => 404,
                 'message' => 'User not found'
             ], 404);
+        }
+
+        $targetUser = $this->userRepository->findByUuid($uuid);
+        if ($targetUser && $targetUser->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+            return $this->json([
+                'code' => 403,
+                'message' => 'Access denied to this user'
+            ], 403);
         }
 
         return $this->json($userDTO->toArray(), 200);
@@ -214,6 +255,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
+                    new OA\Property(property: 'isActive', type: 'boolean', example: true),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
@@ -370,6 +412,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
+                    new OA\Property(property: 'isActive', type: 'boolean', example: true),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
@@ -451,6 +494,16 @@ class UserController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 401),
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Access denied - User belongs to different organization',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
                     ]
                 )
             )
@@ -472,6 +525,7 @@ class UserController extends AbstractController
                     new OA\Property(property: 'email', type: 'string', example: 'john.doe@example.com'),
                     new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                     new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_ADMIN']),
+                    new OA\Property(property: 'isActive', type: 'boolean', example: true),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid', example: '9d6c9c2f-8b3a-4c5e-9a1b-2c3d4e5f6a7b')
                 ]
             )
@@ -555,11 +609,31 @@ class UserController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Access denied - User belongs to different organization',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
+                    ]
+                )
             )
         ]
     )]
     public function update(string $id, Request $request): JsonResponse
     {
+        /** @var User|null $currentUser */
+        $currentUser = $this->getUser();
+        
+        if (!$currentUser) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
@@ -576,6 +650,13 @@ class UserController extends AbstractController
                 'code' => 404,
                 'message' => 'User not found'
             ], 404);
+        }
+
+        if ($user->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+            return $this->json([
+                'code' => 403,
+                'message' => 'Access denied to this user'
+            ], 403);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -670,11 +751,31 @@ class UserController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Access denied - User belongs to different organization',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
+                    ]
+                )
             )
         ]
     )]
     public function delete(string $id): JsonResponse
     {
+        /** @var User|null $currentUser */
+        $currentUser = $this->getUser();
+        
+        if (!$currentUser) {
+            return new JsonResponse([
+                'code' => 401,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
@@ -691,6 +792,13 @@ class UserController extends AbstractController
                 'code' => 404,
                 'message' => 'User not found'
             ], 404);
+        }
+
+        if ($user->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+            return $this->json([
+                'code' => 403,
+                'message' => 'Access denied to this user'
+            ], 403);
         }
 
         try {

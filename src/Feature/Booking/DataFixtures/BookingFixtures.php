@@ -53,6 +53,10 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
             'Team building activity',
         ];
 
+        $durations = [30, 60, 90, 120, 150, 180];
+        $breaks = [0, 15, 30, 60];
+        $lastBookingPerRoom = [];
+
         $bookingCount = 0;
 
         foreach ($users as $user) {
@@ -66,18 +70,27 @@ class BookingFixtures extends Fixture implements DependentFixtureInterface
                 }
 
                 $room = $userRooms[array_rand($userRooms)];
+                $roomId = (string) $room->getId();
 
                 $booking = new Booking();
                 $booking->setTitle($faker->randomElement($bookingTitles) . ' - ' . $faker->word());
                 $booking->setRoom($room);
                 $booking->setUser($user);
 
-                $daysOffset = rand(-30, 60);
-                $hour = rand(8, 17);
-                $minute = $faker->randomElement([0, 15, 30, 45]);
+                $duration = $faker->randomElement($durations);
 
-                $startDate = (new \DateTimeImmutable())->modify(sprintf('%d days %d hours %d minutes', $daysOffset, $hour, $minute));
-                $endDate = $startDate->modify(sprintf('+%d minutes', rand(30, 180)));
+                if (isset($lastBookingPerRoom[$roomId])) {
+                    $breakTime = $faker->randomElement($breaks);
+                    $startDate = $lastBookingPerRoom[$roomId]->modify(sprintf('+%d minutes', $breakTime));
+                } else {
+                    $daysOffset = rand(-30, 60);
+                    $hour = rand(8, 17);
+                    $minute = $faker->randomElement([0, 15, 30, 45]);
+                    $startDate = (new \DateTimeImmutable())->modify(sprintf('%d days %d hours %d minutes', $daysOffset, $hour, $minute));
+                }
+
+                $endDate = $startDate->modify(sprintf('+%d minutes', $duration));
+                $lastBookingPerRoom[$roomId] = $endDate;
 
                 $booking->setStartedAt($startDate);
                 $booking->setEndedAt($endDate);

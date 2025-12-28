@@ -24,7 +24,7 @@ class RoomStatus
     private ?Room $room = null;
 
     #[ORM\Column(type: 'string', length: 20)]
-    #[Assert\Choice(choices: ['available', 'occupied', 'maintenance'], message: 'Invalid status.')]
+    #[Assert\Choice(choices: ['available', 'out_of_use'], message: 'Invalid status.')]
     private string $status = 'available';
 
     #[ORM\Column(type: 'datetime_immutable')]

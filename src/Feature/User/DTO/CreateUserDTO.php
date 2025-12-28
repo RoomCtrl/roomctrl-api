@@ -50,6 +50,8 @@ class CreateUserDTO
 
     public ?array $roles = null;
 
+    public bool $isActive = true;
+
     public static function fromArray(array $data): self
     {
         $dto = new self();
@@ -61,6 +63,7 @@ class CreateUserDTO
         $dto->phone = $data['phone'] ?? '';
         $dto->organizationId = $data['organizationId'] ?? '';
         $dto->roles = $data['roles'] ?? null;
+        $dto->isActive = $data['isActive'] ?? true;
 
         return $dto;
     }

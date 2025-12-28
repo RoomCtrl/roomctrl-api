@@ -82,6 +82,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Assert\NotBlank(message: 'Phone cannot be blank.')]
     private string $phone;
 
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $isActive = true;
+
     #[ORM\Column(type: 'string', length: 64, nullable: true)]
     private ?string $resetToken = null;
 
@@ -271,5 +274,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function isFavoriteRoom(Room $room): bool
     {
         return $this->favoriteRooms->contains($room);
+    }
+
+    public function getIsActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    public function setIsActive(bool $isActive): self
+    {
+        $this->isActive = $isActive;
+        return $this;
     }
 }

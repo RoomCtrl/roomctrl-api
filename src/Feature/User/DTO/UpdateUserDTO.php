@@ -43,6 +43,8 @@ class UpdateUserDTO
 
     public ?array $roles = null;
 
+    public ?bool $isActive = null;
+
     public static function fromArray(array $data): self
     {
         $dto = new self();
@@ -54,6 +56,7 @@ class UpdateUserDTO
         $dto->phone = $data['phone'] ?? null;
         $dto->organizationId = $data['organizationId'] ?? null;
         $dto->roles = $data['roles'] ?? null;
+        $dto->isActive = $data['isActive'] ?? null;
 
         return $dto;
     }

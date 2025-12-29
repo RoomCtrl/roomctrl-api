@@ -7,9 +7,11 @@ namespace App\Feature\Booking\Service;
 use App\Feature\Booking\DTO\BookingCountsResponseDTO;
 use App\Feature\Booking\DTO\BookingResponseDTO;
 use App\Feature\Booking\DTO\BookingTotalStatsResponseDTO;
+use App\Feature\Booking\DTO\BookingTrendResponseDTO;
 use App\Feature\Booking\DTO\CancelBookingResponseDTO;
 use App\Feature\Booking\DTO\CreateBookingDTO;
 use App\Feature\Booking\DTO\OccupancyRateByDayDTO;
+use App\Feature\Booking\DTO\RecurringBookingResponseDTO;
 use App\Feature\Booking\DTO\UpdateBookingDTO;
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Booking\Repository\BookingRepository;
@@ -363,5 +365,101 @@ class BookingService
                 continue;
             }
         }
+    }
+
+    public function getBookingTrend(Organization $organization): BookingTrendResponseDTO
+    {
+        $bookings = $this->bookingRepository->findByOrganization($organization);
+        $now = new DateTimeImmutable();
+
+        $dayNames = ['Nie', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
+        
+        $confirmed = array_fill_keys($dayNames, 0);
+        $pending = array_fill_keys($dayNames, 0);
+        $cancelled = array_fill_keys($dayNames, 0);
+
+        foreach ($bookings as $booking) {
+            $dayIndex = (int)$booking->getStartedAt()->format('w');
+            $dayName = $dayNames[$dayIndex];
+            $status = $booking->getStatus();
+
+            if ($status === 'cancelled') {
+                $cancelled[$dayName]++;
+            } elseif ($status === 'completed') {
+                $confirmed[$dayName]++;
+            } elseif ($status === 'active') {
+                if ($booking->getEndedAt() < $now) {
+                    $confirmed[$dayName]++;
+                } else {
+                    $pending[$dayName]++;
+                }
+            }
+        }
+
+        return new BookingTrendResponseDTO(
+            confirmed: $confirmed,
+            pending: $pending,
+            cancelled: $cancelled
+        );
+    }
+
+    public function createRecurringBooking(
+        Room $room,
+        User $user,
+        string $type,
+        string $startTime,
+        string $endTime,
+        array $daysOfWeek,
+        int $weeksAhead = 12
+    ): RecurringBookingResponseDTO {
+        $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
+        $createdBookings = [];
+        $now = new DateTimeImmutable();
+        
+        // Calculate end date (weeksAhead from now)
+        $endDate = $now->modify("+{$weeksAhead} weeks");
+
+        // Start from tomorrow to avoid creating bookings in the past
+        $currentDate = $now->modify('+1 day')->setTime(0, 0);
+
+        while ($currentDate <= $endDate) {
+            $dayOfWeek = (int)$currentDate->format('N'); // 1=Monday, 7=Sunday
+            
+            if (in_array($dayOfWeek, $daysOfWeek)) {
+                // Parse time
+                [$startHour, $startMinute] = explode(':', $startTime);
+                [$endHour, $endMinute] = explode(':', $endTime);
+                
+                $startedAt = $currentDate->setTime((int)$startHour, (int)$startMinute);
+                $endedAt = $currentDate->setTime((int)$endHour, (int)$endMinute);
+
+                // Check for conflicts
+                $hasConflict = $this->findConflictingBooking($room, $startedAt, $endedAt);
+                
+                if (!$hasConflict) {
+                    $booking = new Booking();
+                    $booking->setTitle($title);
+                    $booking->setRoom($room);
+                    $booking->setUser($user);
+                    $booking->setStartedAt($startedAt);
+                    $booking->setEndedAt($endedAt);
+                    $booking->setParticipantsCount(0);
+                    $booking->setIsPrivate(true);
+                    $booking->setStatus('active');
+
+                    $this->entityManager->persist($booking);
+                    $createdBookings[] = $booking->getId()->toRfc4122();
+                }
+            }
+
+            $currentDate = $currentDate->modify('+1 day');
+        }
+
+        $this->entityManager->flush();
+
+        return new RecurringBookingResponseDTO(
+            createdCount: count($createdBookings),
+            bookingIds: $createdBookings
+        );
     }
 }

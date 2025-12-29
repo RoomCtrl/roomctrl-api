@@ -319,7 +319,9 @@ class RoomService
                 $room['id']->toRfc4122(),
                 $room['roomName'],
                 (int) $room['bookingCount'],
-                $percentage
+                $percentage,
+                (int) $room['weeklyBookings'],
+                (int) $room['monthlyBookings']
             );
         }, $rooms);
     }
@@ -338,7 +340,9 @@ class RoomService
                 $room['id']->toRfc4122(),
                 $room['roomName'],
                 (int) $room['bookingCount'],
-                $percentage
+                $percentage,
+                (int) $room['weeklyBookings'],
+                (int) $room['monthlyBookings']
             );
         }, $rooms);
     }

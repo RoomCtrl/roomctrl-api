@@ -100,6 +100,10 @@ class MailService
 
     public function sendBookingConfirmation($user, $booking, $room, array $participants = []): void
     {
+        if (!$user->isEmailNotificationsEnabled()) {
+            return;
+        }
+
         $html = $this->twig->render('emails/booking_confirmation.html.twig', [
             'user' => $user,
             'booking' => $booking,
@@ -118,6 +122,10 @@ class MailService
 
     public function sendParticipantInvitation($participant, $booking, $room, $organizer): void
     {
+        if (!$participant->isEmailNotificationsEnabled()) {
+            return;
+        }
+
         $html = $this->twig->render('emails/participant_invitation.html.twig', [
             'participant' => $participant,
             'booking' => $booking,

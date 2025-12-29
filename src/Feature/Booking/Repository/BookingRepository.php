@@ -280,4 +280,14 @@ class BookingRepository extends ServiceEntityRepository
 
         return $occupancyData;
     }
+
+    public function findByOrganization(Organization $organization): array
+    {
+        return $this->createQueryBuilder('b')
+            ->join('b.user', 'u')
+            ->where('u.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->getQuery()
+            ->getResult();
+    }
 }

@@ -10,7 +10,9 @@ class RoomUsageStatDTO
         public readonly string $roomId,
         public readonly string $roomName,
         public readonly int $count,
-        public readonly float $percentage
+        public readonly float $percentage,
+        public readonly int $weeklyBookings,
+        public readonly int $monthlyBookings
     ) {
     }
 
@@ -20,7 +22,9 @@ class RoomUsageStatDTO
             'roomId' => $this->roomId,
             'roomName' => $this->roomName,
             'count' => $this->count,
-            'percentage' => round($this->percentage, 1)
+            'percentage' => round($this->percentage, 1),
+            'weeklyBookings' => $this->weeklyBookings,
+            'monthlyBookings' => $this->monthlyBookings
         ];
     }
 }

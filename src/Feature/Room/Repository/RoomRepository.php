@@ -79,11 +79,22 @@ class RoomRepository extends ServiceEntityRepository
 
     public function getMostUsedRooms(Organization $organization, int $limit = 5): array
     {
+        $oneWeekAgo = new \DateTimeImmutable('-1 week');
+        $oneMonthAgo = new \DateTimeImmutable('-1 month');
+
         return $this->createQueryBuilder('r')
-            ->select('r.id', 'r.roomName', 'COUNT(b.id) as bookingCount')
+            ->select(
+                'r.id',
+                'r.roomName',
+                'COUNT(b.id) as bookingCount',
+                'SUM(CASE WHEN b.startedAt >= :oneWeekAgo THEN 1 ELSE 0 END) as weeklyBookings',
+                'SUM(CASE WHEN b.startedAt >= :oneMonthAgo THEN 1 ELSE 0 END) as monthlyBookings'
+            )
             ->leftJoin('r.bookings', 'b')
             ->where('r.organization = :organization')
             ->setParameter('organization', $organization)
+            ->setParameter('oneWeekAgo', $oneWeekAgo)
+            ->setParameter('oneMonthAgo', $oneMonthAgo)
             ->groupBy('r.id')
             ->orderBy('bookingCount', 'DESC')
             ->setMaxResults($limit)
@@ -93,11 +104,22 @@ class RoomRepository extends ServiceEntityRepository
 
     public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
     {
+        $oneWeekAgo = new \DateTimeImmutable('-1 week');
+        $oneMonthAgo = new \DateTimeImmutable('-1 month');
+
         return $this->createQueryBuilder('r')
-            ->select('r.id', 'r.roomName', 'COUNT(b.id) as bookingCount')
+            ->select(
+                'r.id',
+                'r.roomName',
+                'COUNT(b.id) as bookingCount',
+                'SUM(CASE WHEN b.startedAt >= :oneWeekAgo THEN 1 ELSE 0 END) as weeklyBookings',
+                'SUM(CASE WHEN b.startedAt >= :oneMonthAgo THEN 1 ELSE 0 END) as monthlyBookings'
+            )
             ->leftJoin('r.bookings', 'b')
             ->where('r.organization = :organization')
             ->setParameter('organization', $organization)
+            ->setParameter('oneWeekAgo', $oneWeekAgo)
+            ->setParameter('oneMonthAgo', $oneMonthAgo)
             ->groupBy('r.id')
             ->orderBy('bookingCount', 'ASC')
             ->setMaxResults($limit)

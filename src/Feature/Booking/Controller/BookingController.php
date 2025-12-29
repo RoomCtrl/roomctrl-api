@@ -10,6 +10,7 @@ use App\Feature\Booking\DTO\UpdateBookingDTO;
 use App\Feature\Booking\Service\BookingService;
 use App\Feature\User\Entity\User;
 use App\Common\Utility\ValidationErrorFormatter;
+use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -24,7 +25,8 @@ class BookingController extends AbstractController
 {
     public function __construct(
         private readonly BookingService $bookingService,
-        private readonly ValidatorInterface $validator
+        private readonly ValidatorInterface $validator,
+        private readonly EntityManagerInterface $entityManager
     ) {
     }
 
@@ -340,6 +342,128 @@ class BookingController extends AbstractController
                 'code' => 400,
                 'message' => $e->getMessage()
             ], 400);
+        }
+    }
+
+    #[Route('/recurring', name: 'bookings_create_recurring', methods: ['POST'])]
+    #[OA\Post(
+        path: '/api/bookings/recurring',
+        summary: 'Create recurring bookings for cleaning or maintenance',
+        description: 'Creates multiple recurring bookings (e.g., cleaning, maintenance) for specified days of the week over a period of weeks.',
+        security: [['Bearer' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['roomId', 'type', 'startTime', 'endTime', 'daysOfWeek'],
+                properties: [
+                    new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000', description: 'Room ID'),
+                    new OA\Property(property: 'type', type: 'string', enum: ['cleaning', 'maintenance'], example: 'cleaning', description: 'Type of recurring booking'),
+                    new OA\Property(property: 'startTime', type: 'string', example: '08:00', description: 'Start time in HH:MM format'),
+                    new OA\Property(property: 'endTime', type: 'string', example: '09:00', description: 'End time in HH:MM format'),
+                    new OA\Property(
+                        property: 'daysOfWeek',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer', minimum: 1, maximum: 7),
+                        example: [1, 3, 5],
+                        description: 'Days of week (1=Monday, 7=Sunday)'
+                    ),
+                    new OA\Property(property: 'weeksAhead', type: 'integer', example: 12, description: 'Number of weeks ahead to create bookings (default: 12)')
+                ]
+            )
+        ),
+        tags: ['Bookings'],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Recurring bookings created successfully',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'createdCount', type: 'integer', example: 36, description: 'Number of bookings created'),
+                        new OA\Property(
+                            property: 'bookingIds',
+                            type: 'array',
+                            items: new OA\Items(type: 'string', format: 'uuid'),
+                            description: 'Array of created booking IDs'
+                        ),
+                        new OA\Property(property: 'message', type: 'string', example: 'Successfully created 36 recurring bookings')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'errors', type: 'object')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Room not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Room not found')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function createRecurringBooking(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+
+        $dto = new \App\Feature\Booking\DTO\CreateRecurringBookingDTO();
+        $dto->roomId = $data['roomId'] ?? '';
+        $dto->type = $data['type'] ?? '';
+        $dto->startTime = $data['startTime'] ?? '';
+        $dto->endTime = $data['endTime'] ?? '';
+        $dto->daysOfWeek = $data['daysOfWeek'] ?? [];
+        $dto->weeksAhead = $data['weeksAhead'] ?? 12;
+
+        $errors = $this->validator->validate($dto);
+        if (count($errors) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($errors),
+                400
+            );
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        try {
+            $roomUuid = \Symfony\Component\Uid\Uuid::fromString($dto->roomId);
+            $room = $this->entityManager->getRepository(\App\Feature\Room\Entity\Room::class)->find($roomUuid);
+
+            if (!$room) {
+                return new JsonResponse(['code' => 404, 'message' => 'Room not found'], 404);
+            }
+
+            $result = $this->bookingService->createRecurringBooking(
+                $room,
+                $user,
+                $dto->type,
+                $dto->startTime,
+                $dto->endTime,
+                $dto->daysOfWeek,
+                $dto->weeksAhead
+            );
+
+            return new JsonResponse($result->toArray(), 201);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['code' => 400, 'message' => $e->getMessage()], 400);
         }
     }
 
@@ -1099,4 +1223,90 @@ class BookingController extends AbstractController
 
         return new JsonResponse($result);
     }
+
+    #[Route('/statistics/trend', name: 'bookings_trend', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/bookings/statistics/trend',
+        summary: 'Retrieve booking trend statistics by day of week',
+        description: 'Returns booking trends showing confirmed (active + completed), pending (future active), and cancelled bookings grouped by day of week',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Successfully retrieved booking trends',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'confirmed',
+                            type: 'object',
+                            description: 'Confirmed bookings (active + completed) by day',
+                            properties: [
+                                new OA\Property(property: 'Pon', type: 'integer'),
+                                new OA\Property(property: 'Wt', type: 'integer'),
+                                new OA\Property(property: 'Śr', type: 'integer'),
+                                new OA\Property(property: 'Czw', type: 'integer'),
+                                new OA\Property(property: 'Pt', type: 'integer'),
+                                new OA\Property(property: 'Sob', type: 'integer'),
+                                new OA\Property(property: 'Nie', type: 'integer')
+                            ]
+                        ),
+                        new OA\Property(
+                            property: 'pending',
+                            type: 'object',
+                            description: 'Pending bookings (future active) by day',
+                            properties: [
+                                new OA\Property(property: 'Pon', type: 'integer'),
+                                new OA\Property(property: 'Wt', type: 'integer'),
+                                new OA\Property(property: 'Śr', type: 'integer'),
+                                new OA\Property(property: 'Czw', type: 'integer'),
+                                new OA\Property(property: 'Pt', type: 'integer'),
+                                new OA\Property(property: 'Sob', type: 'integer'),
+                                new OA\Property(property: 'Nie', type: 'integer')
+                            ]
+                        ),
+                        new OA\Property(
+                            property: 'cancelled',
+                            type: 'object',
+                            description: 'Cancelled bookings by day',
+                            properties: [
+                                new OA\Property(property: 'Pon', type: 'integer'),
+                                new OA\Property(property: 'Wt', type: 'integer'),
+                                new OA\Property(property: 'Śr', type: 'integer'),
+                                new OA\Property(property: 'Czw', type: 'integer'),
+                                new OA\Property(property: 'Pt', type: 'integer'),
+                                new OA\Property(property: 'Sob', type: 'integer'),
+                                new OA\Property(property: 'Nie', type: 'integer')
+                            ]
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized - missing or invalid authentication token',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getBookingTrend(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $organization = $user->getOrganization();
+
+        $trendData = $this->bookingService->getBookingTrend($organization);
+
+        return new JsonResponse([
+            'confirmed' => $trendData->confirmed,
+            'pending' => $trendData->pending,
+            'cancelled' => $trendData->cancelled
+        ]);
+    }
 }
+

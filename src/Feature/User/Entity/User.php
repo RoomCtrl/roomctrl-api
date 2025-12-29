@@ -85,6 +85,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'boolean', options: ['default' => true])]
     private bool $isActive = true;
 
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $emailNotificationsEnabled = true;
+
     #[ORM\Column(type: 'string', length: 64, nullable: true)]
     private ?string $resetToken = null;
 
@@ -284,6 +287,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setIsActive(bool $isActive): self
     {
         $this->isActive = $isActive;
+        return $this;
+    }
+
+    public function isEmailNotificationsEnabled(): bool
+    {
+        return $this->emailNotificationsEnabled;
+    }
+
+    public function setEmailNotificationsEnabled(bool $emailNotificationsEnabled): self
+    {
+        $this->emailNotificationsEnabled = $emailNotificationsEnabled;
         return $this;
     }
 }

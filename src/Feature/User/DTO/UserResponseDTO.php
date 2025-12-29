@@ -16,6 +16,7 @@ class UserResponseDTO
     public string $phone;
     public array $roles;
     public bool $isActive;
+    public bool $emailNotificationsEnabled;
     public ?array $organization = null;
 
     public static function fromEntity(User $user, bool $withDetails = false): self
@@ -29,6 +30,7 @@ class UserResponseDTO
         $dto->phone = $user->getPhone();
         $dto->roles = $user->getRoles();
         $dto->isActive = $user->getIsActive();
+        $dto->emailNotificationsEnabled = $user->isEmailNotificationsEnabled();
 
         if ($withDetails) {
             $organization = $user->getOrganization();
@@ -56,6 +58,7 @@ class UserResponseDTO
             'phone' => $this->phone,
             'roles' => $this->roles,
             'isActive' => $this->isActive,
+            'emailNotificationsEnabled' => $this->emailNotificationsEnabled,
         ];
 
         if ($this->organization !== null) {

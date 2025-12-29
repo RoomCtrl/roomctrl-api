@@ -201,8 +201,10 @@ class RoomController extends AbstractController
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000'),
                             new OA\Property(property: 'roomName', type: 'string', example: 'Sala nr 208'),
-                            new OA\Property(property: 'count', type: 'integer', example: 45, description: 'Number of bookings'),
-                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 25.0, description: 'Percentage of total bookings')
+                            new OA\Property(property: 'count', type: 'integer', example: 45, description: 'Total number of bookings'),
+                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 25.0, description: 'Percentage of total bookings'),
+                            new OA\Property(property: 'weeklyBookings', type: 'integer', example: 12, description: 'Number of bookings in the last week'),
+                            new OA\Property(property: 'monthlyBookings', type: 'integer', example: 38, description: 'Number of bookings in the last month')
                         ]
                     )
                 )
@@ -249,8 +251,10 @@ class RoomController extends AbstractController
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000'),
                             new OA\Property(property: 'roomName', type: 'string', example: 'Sala nr 101'),
-                            new OA\Property(property: 'count', type: 'integer', example: 3, description: 'Number of bookings'),
-                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 2.0, description: 'Percentage of total bookings')
+                            new OA\Property(property: 'count', type: 'integer', example: 3, description: 'Total number of bookings'),
+                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 2.0, description: 'Percentage of total bookings'),
+                            new OA\Property(property: 'weeklyBookings', type: 'integer', example: 1, description: 'Number of bookings in the last week'),
+                            new OA\Property(property: 'monthlyBookings', type: 'integer', example: 2, description: 'Number of bookings in the last month')
                         ]
                     )
                 )

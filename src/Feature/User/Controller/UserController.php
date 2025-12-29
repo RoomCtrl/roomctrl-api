@@ -8,6 +8,7 @@ use App\Common\Utility\ValidationErrorFormatter;
 use App\Feature\User\DTO\CreateUserDTO;
 use App\Feature\User\DTO\PasswordResetConfirmDTO;
 use App\Feature\User\DTO\PasswordResetRequestDTO;
+use App\Feature\User\DTO\UpdateNotificationSettingsDTO;
 use App\Feature\User\DTO\UpdateUserDTO;
 use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
@@ -69,6 +70,7 @@ class UserController extends AbstractController
                             new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                             new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
                             new OA\Property(property: 'isActive', type: 'boolean', example: true),
+                            new OA\Property(property: 'emailNotificationsEnabled', type: 'boolean', example: true),
                             new OA\Property(
                                 property: 'organization',
                                 properties: [
@@ -114,6 +116,159 @@ class UserController extends AbstractController
         return $this->json($users, 200);
     }
 
+    #[Route('/settings/notifications', name: 'users_get_notification_settings', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/users/settings/notifications',
+        summary: 'Get current email notification settings',
+        description: 'Retrieve the current email notification preferences for the authenticated user',
+        security: [['Bearer' => []]],
+        tags: ['Users'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Current notification settings',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'emailNotificationsEnabled', type: 'boolean', example: true)
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function getNotificationSettings(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$user) {
+            return $this->json([
+                'code' => 401,
+                'message' => 'User not authenticated'
+            ], 401);
+        }
+
+        return $this->json([
+            'emailNotificationsEnabled' => $user->isEmailNotificationsEnabled()
+        ], 200);
+    }
+
+    #[Route('/settings/notifications', name: 'users_update_notification_settings', methods: ['PATCH'])]
+    #[OA\Patch(
+        path: '/api/users/settings/notifications',
+        summary: 'Update email notification settings',
+        description: 'Enable or disable email notifications for bookings and participant invitations',
+        security: [['Bearer' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['emailNotificationsEnabled'],
+                properties: [
+                    new OA\Property(
+                        property: 'emailNotificationsEnabled',
+                        type: 'boolean',
+                        description: 'Enable or disable email notifications',
+                        example: false
+                    )
+                ]
+            )
+        ),
+        tags: ['Users'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Notification settings updated successfully',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'Notification settings updated successfully'),
+                        new OA\Property(property: 'emailNotificationsEnabled', type: 'boolean', example: false)
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Validation error',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string'),
+                                    new OA\Property(property: 'message', type: 'string')
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function updateNotificationSettings(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+
+        if (!is_array($data)) {
+            return $this->json([
+                'code' => 400,
+                'message' => 'Invalid JSON'
+            ], 400);
+        }
+
+        $dto = new UpdateNotificationSettingsDTO();
+        $dto->emailNotificationsEnabled = $data['emailNotificationsEnabled'] ?? null;
+
+        $violations = $this->validator->validate($dto);
+        if (count($violations) > 0) {
+            return $this->json(
+                ValidationErrorFormatter::format($violations),
+                400
+            );
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$user) {
+            return $this->json([
+                'code' => 401,
+                'message' => 'User not authenticated'
+            ], 401);
+        }
+
+        $user->setEmailNotificationsEnabled($dto->emailNotificationsEnabled);
+        $this->userRepository->save($user, true);
+
+        return $this->json([
+            'code' => 200,
+            'message' => 'Notification settings updated successfully',
+            'emailNotificationsEnabled' => $user->isEmailNotificationsEnabled()
+        ], 200);
+    }
+
     #[Route('/{id}', name: 'users_get', requirements: ['id' => '.+'], methods: ['GET'])]
     #[OA\Get(
         path: '/api/users/{id}',
@@ -149,6 +304,7 @@ class UserController extends AbstractController
                         new OA\Property(property: 'phone', type: 'string', example: '+48123456789'),
                         new OA\Property(property: 'roles', type: 'array', items: new OA\Items(type: 'string'), example: ['ROLE_USER']),
                         new OA\Property(property: 'isActive', type: 'boolean', example: true),
+                        new OA\Property(property: 'emailNotificationsEnabled', type: 'boolean', example: true),
                         new OA\Property(
                             property: 'organization',
                             properties: [

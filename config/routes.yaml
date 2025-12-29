@@ -1,3 +1,11 @@
+# Redirect root to API documentation
+index:
+    path: /
+    controller: Symfony\Bundle\FrameworkBundle\Controller\RedirectController
+    defaults:
+        route: 'app.swagger_ui'
+        permanent: true
+
 # Feature-based architecture - load controllers from Feature directories
 controllers:
     resource:

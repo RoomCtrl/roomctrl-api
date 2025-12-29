@@ -27,7 +27,9 @@
         "symfony/validator": "7.4.*",
         "symfony/yaml": "7.4.*",
         "twig/extra-bundle": "^2.12|^3.0",
-        "twig/twig": "^2.12|^3.0"
+        "twig/twig": "^2.12|^3.0",
+        "doctrine/doctrine-fixtures-bundle": "^4.2",
+        "fakerphp/faker": "^1.24"
     },
     "config": {
         "allow-plugins": {
@@ -79,10 +81,7 @@
         }
     },
     "require-dev": {
-        "doctrine/doctrine-fixtures-bundle": "^4.2",
-        "fakerphp/faker": "^1.24",
         "symfony/maker-bundle": "^1.64",
-        "symfony/stopwatch": "7.4.*",
-        "symfony/web-profiler-bundle": "7.4.*"
+        "symfony/stopwatch": "7.4.*"
     }
 }

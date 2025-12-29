@@ -19,12 +19,12 @@ fi
 echo "Using environment variables from .env"
 
 echo "Stopping existing containers..."
-docker compose down
+docker compose down -v
 
-echo "Building containers (using cache)..."
+echo "Building containers (fresh build without cache)..."
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
-docker compose build
+docker compose build --no-cache
 
 echo "Starting containers..."
 docker compose up -d
@@ -61,7 +61,6 @@ echo ""
 echo "Services available at:"
 echo "   - API: http://localhost:8080"
 echo "   - MailHog: http://localhost:8025"
-echo "   - pgAdmin: http://localhost:5050"
 echo "   - PostgreSQL: localhost:5432"
 echo ""
 echo "Useful commands:"

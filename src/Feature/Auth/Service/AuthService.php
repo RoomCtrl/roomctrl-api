@@ -7,22 +7,22 @@ namespace App\Feature\Auth\Service;
 use App\Feature\Auth\DTO\RegisterRequestDTO;
 use App\Feature\Auth\DTO\UserInfoDTO;
 use App\Feature\Auth\Repository\AuthRepository;
-use App\Feature\Mail\Service\MailService;
+use App\Feature\Mail\Service\MailServiceInterface;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
 use InvalidArgumentException;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
-class AuthService
+class AuthService implements AuthServiceInterface
 {
     private AuthRepository $authRepository;
     private UserPasswordHasherInterface $passwordHasher;
-    private MailService $mailService;
+    private MailServiceInterface $mailService;
 
     public function __construct(
         AuthRepository $authRepository,
         UserPasswordHasherInterface $passwordHasher,
-        MailService $mailService
+        MailServiceInterface $mailService
     ) {
         $this->authRepository = $authRepository;
         $this->passwordHasher = $passwordHasher;
@@ -51,28 +51,31 @@ class AuthService
 
     private function validateRegistrationData(RegisterRequestDTO $dto): void
     {
-        $existingUser = $this->authRepository->findUserByUsername($dto->username);
-        if ($existingUser) {
+        $conflicts = $this->authRepository->checkRegistrationConflicts(
+            $dto->username,
+            $dto->email,
+            $dto->phone,
+            $dto->regon,
+            $dto->organizationEmail
+        );
+
+        if ($conflicts['userExists']) {
             throw new InvalidArgumentException('This username is already taken.');
         }
 
-        $existingUserEmail = $this->authRepository->findUserByEmail($dto->email);
-        if ($existingUserEmail) {
+        if ($conflicts['userEmailExists']) {
             throw new InvalidArgumentException('This email is already registered.');
         }
 
-        $existingUserPhone = $this->authRepository->findUserByPhone($dto->phone);
-        if ($existingUserPhone) {
+        if ($conflicts['userPhoneExists']) {
             throw new InvalidArgumentException('This phone number is already in use.');
         }
 
-        $existingOrganization = $this->authRepository->findOrganizationByRegon($dto->regon);
-        if ($existingOrganization) {
+        if ($conflicts['orgRegonExists']) {
             throw new InvalidArgumentException('This REGON is already registered.');
         }
 
-        $existingOrgEmail = $this->authRepository->findOrganizationByEmail($dto->organizationEmail);
-        if ($existingOrgEmail) {
+        if ($conflicts['orgEmailExists']) {
             throw new InvalidArgumentException('This organization email is already registered.');
         }
     }

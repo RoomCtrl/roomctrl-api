@@ -9,7 +9,6 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use App\Feature\User\Entity\User;
 
@@ -26,35 +25,15 @@ class Organization
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 255, unique: true)]
-    #[Assert\NotBlank(message: 'REGON cannot be blank.')]
-    #[Assert\Length(
-        min: 9,
-        max: 14,
-        minMessage: 'REGON must be at least {{ limit }} characters long.',
-        maxMessage: 'REGON cannot be longer than {{ limit }} characters.'
-    )]
-    #[Assert\Regex(
-        pattern: '/^\d+$/',
-        message: 'REGON must contain only digits.'
-    )]
     private string $regon;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank(message: 'Organization name cannot be blank.')]
-    #[Assert\Length(
-        min: 2,
-        max: 255,
-        minMessage: 'Organization name must be at least {{ limit }} characters long.',
-        maxMessage: 'Organization name cannot be longer than {{ limit }} characters.'
-    )]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 255, unique: true)]
-    #[Assert\NotBlank(message: 'Email cannot be blank.')]
-    #[Assert\Email(message: 'The email "{{ value }}" is not a valid email.')]
     private string $email;
 
-    #[ORM\OneToMany(mappedBy: 'organization', targetEntity: User::class)]
+    #[ORM\OneToMany(targetEntity: User::class, mappedBy: 'organization')]
     private Collection $users;
 
     public function __construct()

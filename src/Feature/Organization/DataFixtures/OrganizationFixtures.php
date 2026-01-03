@@ -14,9 +14,9 @@ use Faker\Factory;
 
 class OrganizationFixtures extends Fixture
 {
-    public const ORG_ACME = 'org-acme';
-    public const ORG_GLOBEX = 'org-globex';
-    public const ORG_TECH = 'org-tech';
+    public const string ORG_ACME = 'org-acme';
+    public const string ORG_GLOBEX = 'org-globex';
+    public const string ORG_TECH = 'org-tech';
 
     private array $equipmentNames = [
         'video' => ['Projektor Full HD', 'Projektor 4K', 'TV 55"', 'TV 75"', 'Ekran interaktywny', 'Kamera konferencyjna'],

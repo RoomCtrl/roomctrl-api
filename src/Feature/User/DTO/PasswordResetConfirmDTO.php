@@ -23,4 +23,3 @@ class PasswordResetConfirmDTO
         return $dto;
     }
 }
-

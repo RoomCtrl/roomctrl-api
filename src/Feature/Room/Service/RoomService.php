@@ -5,40 +5,36 @@ declare(strict_types=1);
 namespace App\Feature\Room\Service;
 
 use App\Feature\Booking\Entity\Booking;
+use App\Feature\Booking\Repository\BookingRepository;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\Room\DTO\CreateRoomRequest;
 use App\Feature\Room\DTO\RoomIssueStatDTO;
+use App\Feature\Room\DTO\RoomResponseDTO;
 use App\Feature\Room\DTO\RoomUsageStatDTO;
+use App\Feature\Room\DTO\UpdateRoomRequest;
 use App\Feature\Room\Entity\Equipment;
 use App\Feature\Room\Entity\Room;
 use App\Feature\Room\Entity\RoomStatus;
 use App\Feature\Room\Repository\RoomRepository;
 use App\Feature\User\Entity\User;
+use App\Feature\User\Repository\UserRepository;
 use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 
-class RoomService
+class RoomService implements RoomServiceInterface
 {
     public function __construct(
         private readonly RoomRepository $roomRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly RoomSerializer $roomSerializer
+        private readonly BookingRepository $bookingRepository,
+        private readonly UserRepository $userRepository
     ) {
     }
 
-    /**
-     * Get all rooms, optionally filtered by status and organization
-     * 
-     * @return Room[]
-     */
     public function getAllRooms(?string $status = null, ?Organization $organization = null): array
     {
         if ($organization) {
             if ($status) {
-                return $this->roomRepository->findBy([
-                    'organization' => $organization,
-                    'roomStatus.status' => $status
-                ]);
+                return $this->roomRepository->findByOrganizationAndStatus($organization, $status);
             }
             return $this->roomRepository->findBy(['organization' => $organization]);
         }
@@ -50,17 +46,11 @@ class RoomService
         return $this->roomRepository->findAll();
     }
 
-    /**
-     * Get room by ID
-     */
     public function getRoomById(Uuid $id): ?Room
     {
         return $this->roomRepository->findById($id);
     }
 
-    /**
-     * Toggle favorite status for a room
-     */
     public function toggleFavorite(Room $room, User $user): bool
     {
         $isFavorite = $user->isFavoriteRoom($room);
@@ -71,30 +61,19 @@ class RoomService
             $user->addFavoriteRoom($room);
         }
 
-        $this->entityManager->flush();
+        $this->userRepository->flush();
 
         return !$isFavorite;
     }
 
-    /**
-     * Get user's favorite rooms
-     * 
-     * @return Room[]
-     */
     public function getFavoriteRooms(User $user): array
     {
         return $user->getFavoriteRooms()->toArray();
     }
 
-    /**
-     * Get recently booked rooms by user with booking data
-     * 
-     * @return array<int, array{room: Room, lastBooking: ?Booking}>
-     */
     public function getRecentlyBookedRooms(User $user, int $limit = 3): array
     {
-        $bookings = $this->entityManager->getRepository(Booking::class)
-            ->createQueryBuilder('b')
+        $bookings = $this->bookingRepository->createQueryBuilder('b')
             ->where('b.user = :user')
             ->andWhere('b.room IS NOT NULL')
             ->setParameter('user', $user)
@@ -108,15 +87,15 @@ class RoomService
 
         foreach ($bookings as $booking) {
             $room = $booking->getRoom();
-            
+
             if ($room && !in_array($room->getId()->toRfc4122(), $processedRoomIds)) {
                 $result[] = [
                     'room' => $room,
                     'lastBooking' => $booking
                 ];
-                
+
                 $processedRoomIds[] = $room->getId()->toRfc4122();
-                
+
                 if (count($result) >= $limit) {
                     break;
                 }
@@ -126,166 +105,100 @@ class RoomService
         return $result;
     }
 
-    /**
-     * Get current and next bookings for a room
-     */
-    public function getRoomBookings(Room $room): array
+    public function getRoomResponse(Room $room, bool $withBookings = false): RoomResponseDTO
     {
-        $now = new DateTimeImmutable();
-        $bookings = $this->entityManager->getRepository(Booking::class)->findBy(
-            ['room' => $room, 'status' => 'active'],
-            ['startedAt' => 'ASC']
-        );
+        $dto = RoomResponseDTO::fromEntity($room);
 
-        $currentBooking = null;
-        $nextBookings = [];
-
-        foreach ($bookings as $booking) {
-            if ($booking->getStartedAt() <= $now && $booking->getEndedAt() > $now) {
-                $currentBooking = $booking;
-            } elseif ($booking->getStartedAt() > $now) {
-                $nextBookings[] = $booking;
-            }
+        if ($withBookings) {
+            $bookingData = $this->getBookingData($room);
+            $dto->withBookings($bookingData['current'], $bookingData['next']);
         }
 
-        return [
-            'current' => $currentBooking,
-            'next' => $nextBookings
-        ];
+        return $dto;
     }
 
-    /**
-     * Serialize room data
-     */
-    public function serializeRoom(Room $room, bool $withBookings = false): array
+    public function getRoomResponses(array $rooms, bool $withBookings = false): array
     {
-        return $this->roomSerializer->serialize($room, $withBookings);
+        return array_map(
+            fn(Room $room) => $this->getRoomResponse($room, $withBookings),
+            $rooms
+        );
     }
 
-    /**
-     * Serialize multiple rooms
-     * 
-     * @param Room[] $rooms
-     */
-    public function serializeRooms(array $rooms, bool $withBookings = false): array
+    public function createRoom(CreateRoomRequest $dto, Organization $organization): Room
     {
-        return $this->roomSerializer->serializeMany($rooms, $withBookings);
-    }
-
-    /**
-     * Create a new room
-     */
-    public function createRoom(
-        string $roomName,
-        int $capacity,
-        float $size,
-        string $location,
-        string $access,
-        Organization $organization,
-        ?string $status = 'available',
-        ?string $description = null,
-        ?string $lighting = null,
-        ?array $airConditioning = null,
-        array $equipment = []
-    ): Room {
         $room = new Room();
-        $room->setRoomName($roomName);
-        $room->setCapacity($capacity);
-        $room->setSize($size);
-        $room->setLocation($location);
-        $room->setAccess($access);
+        $room->setRoomName($dto->roomName);
+        $room->setCapacity($dto->capacity);
+        $room->setSize($dto->size);
+        $room->setLocation($dto->location);
+        $room->setAccess($dto->access);
         $room->setOrganization($organization);
-        
+
         $roomStatus = new RoomStatus();
-        $roomStatus->setStatus($status);
+        $roomStatus->setStatus('available');
         $roomStatus->setRoom($room);
         $room->setRoomStatus($roomStatus);
 
-        if ($description !== null) {
-            $room->setDescription($description);
+        if ($dto->description !== null) {
+            $room->setDescription($dto->description);
         }
-        if ($lighting !== null) {
-            $room->setLighting($lighting);
+        if ($dto->lighting !== null) {
+            $room->setLighting($dto->lighting);
         }
-        if ($airConditioning !== null) {
-            $room->setAirConditioning($airConditioning);
-        }
-
-        foreach ($equipment as $equipData) {
-            $equipmentItem = new Equipment();
-            $equipmentItem->setName($equipData['name']);
-            $equipmentItem->setCategory($equipData['category']);
-            $equipmentItem->setQuantity($equipData['quantity'] ?? 1);
-            $room->addEquipment($equipmentItem);
+        if ($dto->airConditioning !== null) {
+            $room->setAirConditioning($dto->airConditioning);
         }
 
-        $this->entityManager->persist($room);
-        $this->entityManager->flush();
-
-        return $room;
-    }
-
-    /**
-     * Update an existing room
-     */
-    public function updateRoom(
-        Room $room,
-        ?string $roomName = null,
-        ?int $capacity = null,
-        ?float $size = null,
-        ?string $location = null,
-        ?string $access = null,
-        ?string $status = null,
-        ?string $description = null,
-        ?string $lighting = null,
-        ?array $airConditioning = null
-    ): Room {
-        if ($roomName !== null) {
-            $room->setRoomName($roomName);
-        }
-        if ($status !== null) {
-            if (!$room->getRoomStatus()) {
-                $roomStatus = new RoomStatus();
-                $roomStatus->setRoom($room);
-                $room->setRoomStatus($roomStatus);
+        if (!empty($dto->equipment)) {
+            foreach ($dto->equipment as $equipData) {
+                $equipmentItem = new Equipment();
+                $equipmentItem->setName($equipData['name']);
+                $equipmentItem->setCategory($equipData['category']);
+                $equipmentItem->setQuantity($equipData['quantity'] ?? 1);
+                $room->addEquipment($equipmentItem);
             }
-            $room->getRoomStatus()->setStatus($status);
-        }
-        if ($capacity !== null) {
-            $room->setCapacity($capacity);
-        }
-        if ($size !== null) {
-            $room->setSize($size);
-        }
-        if ($location !== null) {
-            $room->setLocation($location);
-        }
-        if ($access !== null) {
-            $room->setAccess($access);
-        }
-        if ($description !== null) {
-            $room->setDescription($description);
-        }
-        if ($lighting !== null) {
-            $room->setLighting($lighting);
-        }
-        if ($airConditioning !== null) {
-            $room->setAirConditioning($airConditioning);
         }
 
-        $this->entityManager->flush();
+        $this->roomRepository->save($room, true);
 
         return $room;
     }
 
-    /**
-     * Delete a room and cancel all active bookings
-     */
+    public function updateRoom(Room $room, UpdateRoomRequest $dto): void
+    {
+        if ($dto->roomName !== null) {
+            $room->setRoomName($dto->roomName);
+        }
+        if ($dto->capacity !== null) {
+            $room->setCapacity($dto->capacity);
+        }
+        if ($dto->size !== null) {
+            $room->setSize($dto->size);
+        }
+        if ($dto->location !== null) {
+            $room->setLocation($dto->location);
+        }
+        if ($dto->access !== null) {
+            $room->setAccess($dto->access);
+        }
+        if ($dto->description !== null) {
+            $room->setDescription($dto->description);
+        }
+        if ($dto->lighting !== null) {
+            $room->setLighting($dto->lighting);
+        }
+        if ($dto->airConditioning !== null) {
+            $room->setAirConditioning($dto->airConditioning);
+        }
+
+        $this->roomRepository->flush();
+    }
+
     public function deleteRoom(Room $room): void
     {
         $now = new DateTimeImmutable();
-        $activeBookings = $this->entityManager->getRepository(Booking::class)
-            ->createQueryBuilder('b')
+        $activeBookings = $this->bookingRepository->createQueryBuilder('b')
             ->where('b.room = :room')
             ->andWhere('b.status = :status')
             ->andWhere('b.endedAt >= :now')
@@ -297,79 +210,160 @@ class RoomService
 
         foreach ($activeBookings as $booking) {
             $booking->setStatus('cancelled');
+            $this->bookingRepository->save($booking, false);
         }
-        
-        $this->entityManager->flush();
-        
-        $this->entityManager->remove($room);
-        $this->entityManager->flush();
+
+        $this->bookingRepository->flush();
+        $this->roomRepository->remove($room, true);
     }
 
-    /**
-     * @return array<RoomUsageStatDTO>
-     */
+    private function getBookingData(Room $room): array
+    {
+        $now = new DateTimeImmutable();
+        $bookings = $this->bookingRepository->findBy(
+            ['room' => $room, 'status' => 'active'],
+            ['startedAt' => 'ASC']
+        );
+
+        $currentBooking = null;
+        $nextBookings = [];
+
+        foreach ($bookings as $booking) {
+            if ($booking->getStartedAt() <= $now && $booking->getEndedAt() > $now) {
+                $currentBooking = $this->serializeBooking($booking);
+            } elseif ($booking->getStartedAt() > $now) {
+                $nextBookings[] = $this->serializeBooking($booking);
+            }
+        }
+
+        return [
+            'current' => $currentBooking,
+            'next' => $nextBookings
+        ];
+    }
+
+    private function serializeBooking(Booking $booking): array
+    {
+        return [
+            'id' => $booking->getId()->toRfc4122(),
+            'title' => $booking->getTitle(),
+            'startedAt' => $booking->getStartedAt()->format('c'),
+            'endedAt' => $booking->getEndedAt()->format('c'),
+            'participants' => $booking->getParticipantsCount(),
+            'isPrivate' => $booking->isPrivate()
+        ];
+    }
+
     public function getMostUsedRooms(Organization $organization, int $limit = 5): array
     {
-        $rooms = $this->roomRepository->getMostUsedRooms($organization, $limit);
-        $totalBookings = $this->roomRepository->getTotalBookingsCount($organization);
+        $rawResults = $this->roomRepository->getMostUsedRooms($organization, $limit);
 
-        return array_map(function ($room) use ($totalBookings) {
-            $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
+        $totalBookings = array_sum(array_column($rawResults, 'bookingCount'));
+
+        return array_map(function (array $item) use ($totalBookings): RoomUsageStatDTO {
+            $percentage = $totalBookings > 0 ? round(($item['bookingCount'] / $totalBookings) * 100, 2) : 0;
+
             return new RoomUsageStatDTO(
-                $room['id']->toRfc4122(),
-                $room['roomName'],
-                (int) $room['bookingCount'],
-                $percentage,
-                (int) $room['weeklyBookings'],
-                (int) $room['monthlyBookings']
+                roomId: $item['id'],
+                roomName: $item['roomName'],
+                count: (int) $item['bookingCount'],
+                percentage: $percentage,
+                weeklyBookings: (int) $item['weeklyBookings'],
+                monthlyBookings: (int) $item['monthlyBookings']
             );
-        }, $rooms);
+        }, $rawResults);
     }
 
-    /**
-     * @return array<RoomUsageStatDTO>
-     */
     public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
     {
-        $rooms = $this->roomRepository->getLeastUsedRooms($organization, $limit);
-        $totalBookings = $this->roomRepository->getTotalBookingsCount($organization);
+        $rawResults = $this->roomRepository->getLeastUsedRooms($organization, $limit);
 
-        return array_map(function ($room) use ($totalBookings) {
-            $percentage = $totalBookings > 0 ? ($room['bookingCount'] / $totalBookings) * 100 : 0;
+        $totalBookings = array_sum(array_column($rawResults, 'bookingCount'));
+
+        return array_map(function (array $item) use ($totalBookings): RoomUsageStatDTO {
+            $percentage = $totalBookings > 0 ? round(($item['bookingCount'] / $totalBookings) * 100, 2) : 0;
+
             return new RoomUsageStatDTO(
-                $room['id']->toRfc4122(),
-                $room['roomName'],
-                (int) $room['bookingCount'],
-                $percentage,
-                (int) $room['weeklyBookings'],
-                (int) $room['monthlyBookings']
+                roomId: $item['id'],
+                roomName: $item['roomName'],
+                count: (int) $item['bookingCount'],
+                percentage: $percentage,
+                weeklyBookings: (int) $item['weeklyBookings'],
+                monthlyBookings: (int) $item['monthlyBookings']
             );
-        }, $rooms);
+        }, $rawResults);
     }
 
-    /**
-     * @return array<RoomIssueStatDTO>
-     */
     public function getRoomsWithMostIssues(Organization $organization, int $limit = 5): array
     {
-        $rooms = $this->roomRepository->getRoomsWithMostIssues($organization, $limit);
+        $rawResults = $this->roomRepository->getRoomsWithMostIssues($organization, $limit);
 
-        return array_map(function ($room) {
-            $issueCount = (int) $room['issueCount'];
-            
-            // Determine priority based on issue count
+        return array_map(function (array $item): RoomIssueStatDTO {
             $priority = match (true) {
-                $issueCount >= 10 => 'high',
-                $issueCount >= 5 => 'medium',
+                $item['issueCount'] >= 10 => 'high',
+                $item['issueCount'] >= 5 => 'medium',
                 default => 'low'
             };
 
             return new RoomIssueStatDTO(
-                $room['id']->toRfc4122(),
-                $room['roomName'],
-                $issueCount,
-                $priority
+                roomId: $item['id'],
+                roomName: $item['roomName'],
+                issueCount: (int) $item['issueCount'],
+                priority: $priority
             );
-        }, $rooms);
+        }, $rawResults);
+    }
+
+    public function canUserAccessRoom(Room $room, User $user): bool
+    {
+        return $room->getOrganization()->getId()->toRfc4122() === $user->getOrganization()->getId()->toRfc4122();
+    }
+
+    public function getImagePaths(Room $room): array
+    {
+        return $room->getImagePaths() ?? [];
+    }
+
+    public function setImagePaths(Room $room, array $paths): void
+    {
+        $room->setImagePaths($paths);
+        $this->roomRepository->flush();
+    }
+
+    public function addImagePaths(Room $room, array $newPaths): void
+    {
+        $existingPaths = $room->getImagePaths() ?? [];
+        $allPaths = array_merge($existingPaths, $newPaths);
+        $room->setImagePaths($allPaths);
+        $this->roomRepository->flush();
+    }
+
+    public function removeImagePath(Room $room, int $index): ?string
+    {
+        $imagePaths = $room->getImagePaths() ?? [];
+
+        if (!isset($imagePaths[$index])) {
+            return null;
+        }
+
+        $deletedPath = $imagePaths[$index];
+        unset($imagePaths[$index]);
+        $imagePaths = array_values($imagePaths);
+
+        $room->setImagePaths($imagePaths);
+        $this->roomRepository->flush();
+
+        return $deletedPath;
+    }
+
+    public function clearAllImages(Room $room): int
+    {
+        $imagePaths = $room->getImagePaths() ?? [];
+        $count = count($imagePaths);
+
+        $room->setImagePaths([]);
+        $this->roomRepository->flush();
+
+        return $count;
     }
 }

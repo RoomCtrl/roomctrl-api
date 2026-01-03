@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace App\Feature\Room\Controller;
 
-use App\Feature\Room\Entity\Room;
 use App\Feature\Room\DTO\CreateRoomRequest;
+use App\Feature\Room\DTO\RecentRoomResponseDTO;
 use App\Feature\Room\DTO\UpdateRoomRequest;
-use App\Feature\Room\Service\RoomService;
-use App\Feature\Organization\Entity\Organization;
+use App\Feature\Room\DTO\ImageUploadResponseDTO;
+use App\Feature\Room\DTO\ImageDeleteResponseDTO;
+use App\Feature\Room\DTO\FavoriteToggleResponseDTO;
+use App\Feature\Room\DTO\ImageListResponseDTO;
+use App\Feature\Room\Service\RoomServiceInterface;
+use App\Feature\Room\Service\FileUploadService;
 use App\Feature\User\Entity\User;
 use App\Common\Utility\ValidationErrorFormatter;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Uid\Uuid;
 use OpenApi\Attributes as OA;
@@ -27,13 +32,14 @@ use Exception;
 class RoomController extends AbstractController
 {
     public function __construct(
-        private readonly RoomService $roomService,
-        private readonly EntityManagerInterface $entityManager,
+        private readonly RoomServiceInterface $roomService,
+        private readonly FileUploadService $fileUploadService,
         private readonly ValidatorInterface $validator
     ) {
     }
 
     #[Route('', name: 'rooms_list', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms',
         summary: 'Get all rooms',
@@ -41,17 +47,17 @@ class RoomController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'status',
+                description: 'Filter by room status',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'string', enum: ['available', 'out_of_use']),
-                description: 'Filter by room status'
+                schema: new OA\Schema(type: 'string', enum: ['available', 'out_of_use'])
             ),
             new OA\Parameter(
                 name: 'withBookings',
+                description: 'Include current and next bookings',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'boolean'),
-                description: 'Include current and next bookings'
+                schema: new OA\Schema(type: 'boolean')
             )
         ],
         responses: [
@@ -61,49 +67,46 @@ class RoomController extends AbstractController
                 content: new OA\JsonContent(
                     type: 'array',
                     items: new OA\Items(
-                        type: 'object',
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
                             new OA\Property(property: 'roomName', type: 'string'),
                             new OA\Property(property: 'status', type: 'string', enum: ['available', 'out_of_use']),
                             new OA\Property(property: 'capacity', type: 'integer'),
-                            new OA\Property(property: 'size', type: 'number', format: 'float', description: 'Size in square meters'),
+                            new OA\Property(property: 'size', description: 'Size in square meters', type: 'number', format: 'float'),
                             new OA\Property(property: 'location', type: 'string'),
                             new OA\Property(property: 'access', type: 'string'),
                             new OA\Property(property: 'description', type: 'string'),
                             new OA\Property(property: 'lighting', type: 'string'),
                             new OA\Property(
                                 property: 'airConditioning',
-                                type: 'object',
-                                nullable: true,
                                 properties: [
                                     new OA\Property(property: 'min', type: 'number'),
                                     new OA\Property(property: 'max', type: 'number')
-                                ]
+                                ],
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'imagePaths',
+                                description: 'Array of paths to uploaded images or PDF files',
                                 type: 'array',
                                 items: new OA\Items(type: 'string'),
-                                nullable: true,
-                                description: 'Array of paths to uploaded images or PDF files'
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'equipment',
                                 type: 'array',
                                 items: new OA\Items(
-                                    type: 'object',
                                     properties: [
                                         new OA\Property(property: 'name', type: 'string'),
                                         new OA\Property(property: 'category', type: 'string', enum: ['video', 'audio', 'computer', 'accessory', 'furniture']),
                                         new OA\Property(property: 'quantity', type: 'integer')
-                                    ]
+                                    ],
+                                    type: 'object'
                                 )
                             ),
                             new OA\Property(
                                 property: 'currentBooking',
-                                type: 'object',
-                                nullable: true,
                                 description: 'Present only when withBookings=true',
                                 properties: [
                                     new OA\Property(property: 'id', type: 'string', format: 'uuid'),
@@ -112,14 +115,15 @@ class RoomController extends AbstractController
                                     new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
                                     new OA\Property(property: 'participants', type: 'integer'),
                                     new OA\Property(property: 'isPrivate', type: 'boolean')
-                                ]
+                                ],
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'nextBookings',
-                                type: 'array',
                                 description: 'Present only when withBookings=true',
+                                type: 'array',
                                 items: new OA\Items(
-                                    type: 'object',
                                     properties: [
                                         new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                         new OA\Property(property: 'title', type: 'string'),
@@ -127,10 +131,12 @@ class RoomController extends AbstractController
                                         new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
                                         new OA\Property(property: 'participants', type: 'integer'),
                                         new OA\Property(property: 'isPrivate', type: 'boolean')
-                                    ]
+                                    ],
+                                    type: 'object'
                                 )
                             )
-                        ]
+                        ],
+                        type: 'object'
                     ),
                     example: [
                         [
@@ -168,28 +174,30 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $status = $request->query->get('status');
         $withBookings = $request->query->getBoolean('withBookings', false);
 
         $rooms = $this->roomService->getAllRooms($status, $user->getOrganization());
-        $data = $this->roomService->serializeRooms($rooms, $withBookings);
+        $responseDTOs = $this->roomService->getRoomResponses($rooms, $withBookings);
+        $data = array_map(fn($dto) => $dto->toArray(), $responseDTOs);
 
-        return new JsonResponse(array_values($data));
+        return new JsonResponse(array_values($data), Response::HTTP_OK);
     }
 
     #[Route('/statistics/most_used', name: 'rooms_statistics_most_used', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/rooms/statistics/most_used',
-        summary: 'Get most frequently used rooms',
         description: 'Returns top 5 rooms with the highest number of bookings in the user\'s organization.',
+        summary: 'Get most frequently used rooms',
         security: [['Bearer' => []]],
         responses: [
             new OA\Response(
@@ -201,10 +209,10 @@ class RoomController extends AbstractController
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000'),
                             new OA\Property(property: 'roomName', type: 'string', example: 'Sala nr 208'),
-                            new OA\Property(property: 'count', type: 'integer', example: 45, description: 'Total number of bookings'),
-                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 25.0, description: 'Percentage of total bookings'),
-                            new OA\Property(property: 'weeklyBookings', type: 'integer', example: 12, description: 'Number of bookings in the last week'),
-                            new OA\Property(property: 'monthlyBookings', type: 'integer', example: 38, description: 'Number of bookings in the last month')
+                            new OA\Property(property: 'count', description: 'Total number of bookings', type: 'integer', example: 45),
+                            new OA\Property(property: 'percentage', description: 'Percentage of total bookings', type: 'number', format: 'float', example: 25.0),
+                            new OA\Property(property: 'weeklyBookings', description: 'Number of bookings in the last week', type: 'integer', example: 12),
+                            new OA\Property(property: 'monthlyBookings', description: 'Number of bookings in the last month', type: 'integer', example: 38)
                         ]
                     )
                 )
@@ -216,6 +224,16 @@ class RoomController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 401),
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
                     ]
                 )
             )
@@ -227,19 +245,23 @@ class RoomController extends AbstractController
         $user = $this->getUser();
 
         if (!$user || !$user->getOrganization()) {
-            return new JsonResponse(['code' => 401, 'message' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => Response::HTTP_UNAUTHORIZED,
+                'message' => 'Unauthorized'
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $stats = $this->roomService->getMostUsedRooms($user->getOrganization());
 
-        return new JsonResponse(array_map(fn($stat) => $stat->toArray(), $stats));
+        return new JsonResponse($stats, Response::HTTP_OK);
     }
 
     #[Route('/statistics/least_used', name: 'rooms_statistics_least_used', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/rooms/statistics/least_used',
-        summary: 'Get least frequently used rooms',
         description: 'Returns top 5 rooms with the lowest number of bookings in the user\'s organization.',
+        summary: 'Get least frequently used rooms',
         security: [['Bearer' => []]],
         responses: [
             new OA\Response(
@@ -251,10 +273,10 @@ class RoomController extends AbstractController
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000'),
                             new OA\Property(property: 'roomName', type: 'string', example: 'Sala nr 101'),
-                            new OA\Property(property: 'count', type: 'integer', example: 3, description: 'Total number of bookings'),
-                            new OA\Property(property: 'percentage', type: 'number', format: 'float', example: 2.0, description: 'Percentage of total bookings'),
-                            new OA\Property(property: 'weeklyBookings', type: 'integer', example: 1, description: 'Number of bookings in the last week'),
-                            new OA\Property(property: 'monthlyBookings', type: 'integer', example: 2, description: 'Number of bookings in the last month')
+                            new OA\Property(property: 'count', description: 'Total number of bookings', type: 'integer', example: 3),
+                            new OA\Property(property: 'percentage', description: 'Percentage of total bookings', type: 'number', format: 'float', example: 2.0),
+                            new OA\Property(property: 'weeklyBookings', description: 'Number of bookings in the last week', type: 'integer', example: 1),
+                            new OA\Property(property: 'monthlyBookings', description: 'Number of bookings in the last month', type: 'integer', example: 2)
                         ]
                     )
                 )
@@ -266,6 +288,16 @@ class RoomController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 401),
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
                     ]
                 )
             )
@@ -277,19 +309,23 @@ class RoomController extends AbstractController
         $user = $this->getUser();
 
         if (!$user || !$user->getOrganization()) {
-            return new JsonResponse(['code' => 401, 'message' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => Response::HTTP_UNAUTHORIZED,
+                'message' => 'Unauthorized'
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $stats = $this->roomService->getLeastUsedRooms($user->getOrganization());
 
-        return new JsonResponse(array_map(fn($stat) => $stat->toArray(), $stats));
+        return new JsonResponse($stats, Response::HTTP_OK);
     }
 
     #[Route('/statistics/most_issues', name: 'rooms_statistics_most_issues', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/rooms/statistics/most_issues',
-        summary: 'Get rooms with most issues',
         description: 'Returns top 5 rooms with the highest number of reported issues in the user\'s organization.',
+        summary: 'Get rooms with most issues',
         security: [['Bearer' => []]],
         responses: [
             new OA\Response(
@@ -301,8 +337,8 @@ class RoomController extends AbstractController
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000'),
                             new OA\Property(property: 'roomName', type: 'string', example: 'Sala nr 208'),
-                            new OA\Property(property: 'issueCount', type: 'integer', example: 12, description: 'Number of issues'),
-                            new OA\Property(property: 'priority', type: 'string', enum: ['low', 'medium', 'high'], example: 'high', description: 'Priority level based on issue count')
+                            new OA\Property(property: 'issueCount', description: 'Number of issues', type: 'integer', example: 12),
+                            new OA\Property(property: 'priority', description: 'Priority level based on issue count', type: 'string', enum: ['low', 'medium', 'high'], example: 'high')
                         ]
                     )
                 )
@@ -316,6 +352,16 @@ class RoomController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -325,15 +371,19 @@ class RoomController extends AbstractController
         $user = $this->getUser();
 
         if (!$user || !$user->getOrganization()) {
-            return new JsonResponse(['code' => 401, 'message' => 'Unauthorized'], 401);
+            return new JsonResponse([
+                'code' => Response::HTTP_UNAUTHORIZED,
+                'message' => 'Unauthorized'
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $stats = $this->roomService->getRoomsWithMostIssues($user->getOrganization());
 
-        return new JsonResponse(array_map(fn($stat) => $stat->toArray(), $stats));
+        return new JsonResponse($stats, Response::HTTP_OK);
     }
 
     #[Route('/favorites', name: 'rooms_favorites_list', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms/favorites',
         summary: 'Get favorite rooms for the current user',
@@ -345,7 +395,6 @@ class RoomController extends AbstractController
                 content: new OA\JsonContent(
                     type: 'array',
                     items: new OA\Items(
-                        type: 'object',
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
                             new OA\Property(property: 'roomName', type: 'string'),
@@ -358,12 +407,12 @@ class RoomController extends AbstractController
                             new OA\Property(property: 'lighting', type: 'string'),
                             new OA\Property(
                                 property: 'airConditioning',
-                                type: 'object',
-                                nullable: true,
                                 properties: [
                                     new OA\Property(property: 'min', type: 'number'),
                                     new OA\Property(property: 'max', type: 'number')
-                                ]
+                                ],
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'imagePaths',
@@ -375,15 +424,16 @@ class RoomController extends AbstractController
                                 property: 'equipment',
                                 type: 'array',
                                 items: new OA\Items(
-                                    type: 'object',
                                     properties: [
                                         new OA\Property(property: 'name', type: 'string'),
                                         new OA\Property(property: 'category', type: 'string'),
                                         new OA\Property(property: 'quantity', type: 'integer')
-                                    ]
+                                    ],
+                                    type: 'object'
                                 )
                             )
-                        ]
+                        ],
+                        type: 'object'
                     )
                 )
             ),
@@ -403,21 +453,23 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
-            return new JsonResponse([
-                'code' => 401,
+            return $this->json([
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $favoriteRooms = $this->roomService->getFavoriteRooms($user);
-        $data = $this->roomService->serializeRooms($favoriteRooms, false);
+        $responseDTOs = $this->roomService->getRoomResponses($favoriteRooms, false);
+        $data = array_map(fn($dto) => $dto->toArray(), $responseDTOs);
 
-        return new JsonResponse(array_values($data));
+        return new JsonResponse(array_values($data), Response::HTTP_OK);
     }
 
     #[Route('/recent', name: 'rooms_recent', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms/recent',
         summary: 'Get last 3 rooms booked by the current user',
@@ -429,7 +481,6 @@ class RoomController extends AbstractController
                 content: new OA\JsonContent(
                     type: 'array',
                     items: new OA\Items(
-                        type: 'object',
                         properties: [
                             new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
                             new OA\Property(property: 'roomName', type: 'string'),
@@ -442,12 +493,12 @@ class RoomController extends AbstractController
                             new OA\Property(property: 'lighting', type: 'string'),
                             new OA\Property(
                                 property: 'airConditioning',
-                                type: 'object',
-                                nullable: true,
                                 properties: [
                                     new OA\Property(property: 'min', type: 'number'),
                                     new OA\Property(property: 'max', type: 'number')
-                                ]
+                                ],
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'imagePaths',
@@ -459,26 +510,27 @@ class RoomController extends AbstractController
                                 property: 'equipment',
                                 type: 'array',
                                 items: new OA\Items(
-                                    type: 'object',
                                     properties: [
                                         new OA\Property(property: 'name', type: 'string'),
                                         new OA\Property(property: 'category', type: 'string'),
                                         new OA\Property(property: 'quantity', type: 'integer')
-                                    ]
+                                    ],
+                                    type: 'object'
                                 )
                             ),
                             new OA\Property(
                                 property: 'lastBooking',
-                                type: 'object',
-                                nullable: true,
                                 properties: [
                                     new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                     new OA\Property(property: 'title', type: 'string'),
                                     new OA\Property(property: 'startedAt', type: 'string', format: 'date-time'),
                                     new OA\Property(property: 'endedAt', type: 'string', format: 'date-time')
-                                ]
+                                ],
+                                type: 'object',
+                                nullable: true
                             )
-                        ]
+                        ],
+                        type: 'object'
                     )
                 )
             ),
@@ -498,31 +550,25 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $recentRooms = $this->roomService->getRecentlyBookedRooms($user, 3);
-        
+
         $data = array_map(function ($item) {
-            return $this->roomService->serializeRoom($item['room'], false) + [
-                'lastBooking' => $item['lastBooking'] ? [
-                    'id' => $item['lastBooking']->getId()->toRfc4122(),
-                    'title' => $item['lastBooking']->getTitle(),
-                    'startedAt' => $item['lastBooking']->getStartedAt()->format('c'),
-                    'endedAt' => $item['lastBooking']->getEndedAt()->format('c')
-                ] : null
-            ];
+            return RecentRoomResponseDTO::fromEntityWithBooking($item['room'], $item['lastBooking'])->toArray();
         }, $recentRooms);
 
-        return new JsonResponse($data);
+        return new JsonResponse($data, Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'rooms_get', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms/{id}',
         summary: 'Get a single room by ID',
@@ -535,7 +581,6 @@ class RoomController extends AbstractController
                 response: 200,
                 description: 'Returns room details',
                 content: new OA\JsonContent(
-                    type: 'object',
                     properties: [
                         new OA\Property(property: 'roomId', type: 'string', format: 'uuid'),
                         new OA\Property(property: 'roomName', type: 'string'),
@@ -548,36 +593,34 @@ class RoomController extends AbstractController
                         new OA\Property(property: 'lighting', type: 'string'),
                         new OA\Property(
                             property: 'airConditioning',
-                            type: 'object',
-                            nullable: true,
                             properties: [
                                 new OA\Property(property: 'min', type: 'number'),
                                 new OA\Property(property: 'max', type: 'number')
-                            ]
+                            ],
+                            type: 'object',
+                            nullable: true
                         ),
                         new OA\Property(
                             property: 'imagePaths',
+                            description: 'Array of paths to uploaded images or PDF files',
                             type: 'array',
                             items: new OA\Items(type: 'string'),
-                            nullable: true,
-                            description: 'Array of paths to uploaded images or PDF files'
+                            nullable: true
                         ),
                         new OA\Property(
                             property: 'equipment',
                             type: 'array',
                             items: new OA\Items(
-                                type: 'object',
                                 properties: [
                                     new OA\Property(property: 'name', type: 'string'),
                                     new OA\Property(property: 'category', type: 'string'),
                                     new OA\Property(property: 'quantity', type: 'integer')
-                                ]
+                                ],
+                                type: 'object'
                             )
                         ),
                         new OA\Property(
                             property: 'currentBooking',
-                            type: 'object',
-                            nullable: true,
                             properties: [
                                 new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                 new OA\Property(property: 'title', type: 'string'),
@@ -585,13 +628,14 @@ class RoomController extends AbstractController
                                 new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
                                 new OA\Property(property: 'participants', type: 'integer'),
                                 new OA\Property(property: 'isPrivate', type: 'boolean')
-                            ]
+                            ],
+                            type: 'object',
+                            nullable: true
                         ),
                         new OA\Property(
                             property: 'nextBookings',
                             type: 'array',
                             items: new OA\Items(
-                                type: 'object',
                                 properties: [
                                     new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                     new OA\Property(property: 'title', type: 'string'),
@@ -599,10 +643,12 @@ class RoomController extends AbstractController
                                     new OA\Property(property: 'endedAt', type: 'string', format: 'date-time'),
                                     new OA\Property(property: 'participants', type: 'integer'),
                                     new OA\Property(property: 'isPrivate', type: 'boolean')
-                                ]
+                                ],
+                                type: 'object'
                             )
                         )
-                    ]
+                    ],
+                    type: 'object'
                 )
             ),
             new OA\Response(
@@ -651,43 +697,45 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
-        } catch (Exception $e) {
+        } catch (Exception) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $room = $this->roomService->getRoomById($uuid);
 
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        return new JsonResponse($this->roomService->serializeRoom($room, true));
+        $responseDTO = $this->roomService->getRoomResponse($room, true);
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('', name: 'rooms_create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
         path: '/api/rooms',
         summary: 'Create a new room',
@@ -699,33 +747,33 @@ class RoomController extends AbstractController
                 properties: [
                     new OA\Property(property: 'roomName', type: 'string'),
                     new OA\Property(property: 'status', type: 'string', enum: ['available', 'out_of_use']),
-                    new OA\Property(property: 'capacity', type: 'integer', minimum: 1, maximum: 200),
-                    new OA\Property(property: 'size', type: 'number', format: 'float', description: 'Size in square meters'),
+                    new OA\Property(property: 'capacity', type: 'integer', maximum: 200, minimum: 1),
+                    new OA\Property(property: 'size', description: 'Size in square meters', type: 'number', format: 'float'),
                     new OA\Property(property: 'location', type: 'string'),
-                    new OA\Property(property: 'access', type: 'string', description: 'Access method: magnetic card, pin, key, biometric, etc.'),
+                    new OA\Property(property: 'access', description: 'Access method: magnetic card, pin, key, biometric, etc.', type: 'string'),
                     new OA\Property(property: 'description', type: 'string'),
                     new OA\Property(property: 'lighting', type: 'string'),
                     new OA\Property(
                         property: 'airConditioning',
-                        type: 'object',
+                        description: 'Air conditioning temperature range',
                         properties: [
                             new OA\Property(property: 'min', type: 'number'),
                             new OA\Property(property: 'max', type: 'number')
                         ],
-                        example: ['min' => 18, 'max' => 24],
-                        description: 'Air conditioning temperature range'
+                        type: 'object',
+                        example: ['min' => 18, 'max' => 24]
                     ),
                     new OA\Property(property: 'organizationId', type: 'string', format: 'uuid'),
                     new OA\Property(
                         property: 'equipment',
                         type: 'array',
                         items: new OA\Items(
-                            type: 'object',
                             properties: [
                                 new OA\Property(property: 'name', type: 'string'),
                                 new OA\Property(property: 'category', type: 'string', enum: ['video', 'audio', 'computer', 'accessory', 'furniture']),
                                 new OA\Property(property: 'quantity', type: 'integer')
-                            ]
+                            ],
+                            type: 'object'
                         )
                     )
                 ]
@@ -775,11 +823,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Forbidden - Can only create rooms for your organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or trying to create room for different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'You can only create rooms for your organization')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied or you can only create rooms for your organization')
                     ]
                 )
             )
@@ -789,90 +837,67 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $data = json_decode($request->getContent(), true);
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $createRequest = CreateRoomRequest::fromArray($data);
-        
+
         $errors = $this->validator->validate($createRequest);
         if (count($errors) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($errors),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
             $orgUuid = Uuid::fromString($createRequest->organizationId);
-        } catch (Exception $e) {
+        } catch (Exception) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid organization UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         if ($orgUuid->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
             return $this->json([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'You can only create rooms for your organization'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        $organization = $this->entityManager->getRepository(Organization::class)->find($orgUuid);
-        if (!$organization) {
-            return $this->json([
-                'code' => 404,
-                'message' => 'Organization not found'
-            ], 404);
-        }
-
-        $room = $this->roomService->createRoom(
-            roomName: $createRequest->roomName,
-            capacity: $createRequest->capacity,
-            size: $createRequest->size,
-            location: $createRequest->location,
-            access: $createRequest->access,
-            organization: $organization,
-            status: $createRequest->status,
-            description: $createRequest->description,
-            lighting: $createRequest->lighting,
-            airConditioning: $createRequest->airConditioning,
-            equipment: $createRequest->equipment
-        );
+        $room = $this->roomService->createRoom($createRequest, $user->getOrganization());
 
         return $this->json([
-            'code' => 201,
+            'code' => Response::HTTP_CREATED,
             'message' => 'Room created successfully',
             'id' => $room->getId()->toRfc4122()
-        ], 201);
+        ], Response::HTTP_CREATED);
     }
 
     #[Route('/{id}', name: 'rooms_update', methods: ['PUT', 'PATCH'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Put(
         path: '/api/rooms/{id}',
         summary: 'Update a room',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
-        ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                type: 'object',
                 properties: [
                     new OA\Property(property: 'roomName', type: 'string'),
                     new OA\Property(property: 'status', type: 'string', enum: ['available', 'out_of_use']),
@@ -884,16 +909,20 @@ class RoomController extends AbstractController
                     new OA\Property(property: 'lighting', type: 'string'),
                     new OA\Property(
                         property: 'airConditioning',
-                        type: 'object',
-                        nullable: true,
                         properties: [
                             new OA\Property(property: 'min', type: 'number'),
                             new OA\Property(property: 'max', type: 'number')
-                        ]
+                        ],
+                        type: 'object',
+                        nullable: true
                     )
-                ]
+                ],
+                type: 'object'
             )
         ),
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -947,11 +976,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -961,13 +990,9 @@ class RoomController extends AbstractController
         path: '/api/rooms/{id}',
         summary: 'Partially update a room',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
-        ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                type: 'object',
                 properties: [
                     new OA\Property(property: 'roomName', type: 'string'),
                     new OA\Property(property: 'status', type: 'string', enum: ['available', 'out_of_use']),
@@ -979,16 +1004,20 @@ class RoomController extends AbstractController
                     new OA\Property(property: 'lighting', type: 'string'),
                     new OA\Property(
                         property: 'airConditioning',
-                        type: 'object',
-                        nullable: true,
                         properties: [
                             new OA\Property(property: 'min', type: 'number'),
                             new OA\Property(property: 'max', type: 'number')
-                        ]
+                        ],
+                        type: 'object',
+                        nullable: true
                     )
-                ]
+                ],
+                type: 'object'
             )
         ),
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -1042,11 +1071,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -1056,77 +1085,67 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return $this->json([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $data = json_decode($request->getContent(), true);
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
-        
+
         $updateRequest = UpdateRoomRequest::fromArray($data);
-        
+
         $errors = $this->validator->validate($updateRequest);
         if (count($errors) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($errors),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
-        $room = $this->roomService->updateRoom(
-            room: $room,
-            roomName: $updateRequest->roomName,
-            capacity: $updateRequest->capacity,
-            size: $updateRequest->size,
-            location: $updateRequest->location,
-            access: $updateRequest->access,
-            status: $updateRequest->status,
-            description: $updateRequest->description,
-            lighting: $updateRequest->lighting,
-            airConditioning: $updateRequest->airConditioning
-        );
+        $this->roomService->updateRoom($room, $updateRequest);
 
         return $this->json([
-            'code' => 200,
+            'code' => Response::HTTP_OK,
             'message' => 'Room updated successfully'
-        ], 200);
+        ], Response::HTTP_OK);
     }
 
     #[Route('/{id}/upload', name: 'rooms_upload_image', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
         path: '/api/rooms/{id}/upload',
         summary: 'Upload one or multiple images/PDFs for a room',
@@ -1200,11 +1219,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -1214,44 +1233,44 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $files = $request->files->get('files');
         if (!$files) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'No files uploaded'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         // Convert single file to array for uniform processing
@@ -1259,58 +1278,34 @@ class RoomController extends AbstractController
             $files = [$files];
         }
 
-        $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-        $uploadedPaths = [];
-
-        foreach ($files as $file) {
-            if (!$file) {
-                continue;
-            }
-
-            $mimeType = $file->getMimeType();
-            $extension = $file->getClientOriginalExtension();
-
-            if (!in_array($mimeType, $allowedMimeTypes) || !in_array(strtolower($extension), $allowedExtensions)) {
-                return new JsonResponse([
-                    'code' => 400,
-                    'message' => 'Invalid file type. Only JPG, PNG, and PDF files are allowed.'
-                ], 400);
-            }
-
-            $uploadDir = $this->getParameter('kernel.project_dir') . '/public/uploads/rooms';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
-
-            $fileName = $uuid->toRfc4122() . '_' . time() . '_' . uniqid() . '.' . $extension;
-            $file->move($uploadDir, $fileName);
-
-            $imagePath = '/uploads/rooms/' . $fileName;
-            $uploadedPaths[] = $imagePath;
+        try {
+            $uploadedPaths = $this->fileUploadService->uploadFiles($files, $uuid->toRfc4122());
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse([
+                'code' => Response::HTTP_BAD_REQUEST,
+                'message' => $e->getMessage()
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         if (empty($uploadedPaths)) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'No valid files were uploaded'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
-        // Get existing image paths and merge with new ones
-        $existingPaths = $room->getImagePaths() ?? [];
-        $allPaths = array_merge($existingPaths, $uploadedPaths);
-        $room->setImagePaths($allPaths);
-        $this->entityManager->flush();
+        $this->roomService->addImagePaths($room, $uploadedPaths);
 
-        return new JsonResponse([
-            'code' => 200,
-            'message' => 'Files uploaded successfully',
-            'imagePaths' => $uploadedPaths
-        ]);
+        $responseDTO = new ImageUploadResponseDTO(
+            'Files uploaded successfully',
+            $uploadedPaths
+        );
+
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/{id}/images', name: 'rooms_get_images', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms/{id}/images',
         summary: 'Get all room images/PDFs',
@@ -1380,44 +1375,43 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['code' => 400, 'message' => 'Invalid UUID format'], 400);
+            return new JsonResponse(['code' => Response::HTTP_BAD_REQUEST, 'message' => 'Invalid UUID format'], Response::HTTP_BAD_REQUEST);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        $imagePaths = $room->getImagePaths() ?? [];
+        $imagePaths = $this->roomService->getImagePaths($room);
 
-        return new JsonResponse([
-            'code' => 200,
-            'imagePaths' => $imagePaths
-        ]);
+        $responseDTO = new ImageListResponseDTO($imagePaths);
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/{id}/image/{imageIndex}', name: 'rooms_get_image', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/rooms/{id}/image/{imageIndex}',
         summary: 'Get a specific room image or PDF by index',
@@ -1473,50 +1467,51 @@ class RoomController extends AbstractController
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
-            return new JsonResponse(['code' => 400, 'message' => 'Invalid UUID format'], 400);
+            return new JsonResponse(['code' => Response::HTTP_BAD_REQUEST, 'message' => 'Invalid UUID format'], Response::HTTP_BAD_REQUEST);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         /** @var User|null $user */
         $user = $this->getUser();
-        if ($user && $room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if ($user && !$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        $imagePaths = $room->getImagePaths() ?? [];
-        
+        $imagePaths = $this->roomService->getImagePaths($room);
+
         if (empty($imagePaths) || !isset($imagePaths[$imageIndex])) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Image not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $filePath = $this->getParameter('kernel.project_dir') . '/public' . $imagePaths[$imageIndex];
         if (!file_exists($filePath)) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Image file not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $response = new BinaryFileResponse($filePath);
         $response->headers->set('Content-Type', mime_content_type($filePath));
-        
+
         return $response;
     }
 
     #[Route('/{id}/images', name: 'rooms_delete_all_images', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
         path: '/api/rooms/{id}/images',
         summary: 'Delete all images/PDFs for a room',
@@ -1568,11 +1563,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -1582,68 +1577,62 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        $imagePaths = $room->getImagePaths() ?? [];
+        $imagePaths = $this->roomService->getImagePaths($room);
         if (empty($imagePaths)) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'No images to delete'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        $deletedCount = 0;
-        $uploadDir = $this->getParameter('kernel.project_dir') . '/public';
+        $deletedCount = $this->fileUploadService->deleteFiles(
+            $imagePaths,
+            $this->getParameter('kernel.project_dir')
+        );
+        $this->roomService->clearAllImages($room);
 
-        foreach ($imagePaths as $imagePath) {
-            $filePath = $uploadDir . $imagePath;
-            if (file_exists($filePath)) {
-                unlink($filePath);
-                $deletedCount++;
-            }
-        }
+        $responseDTO = new ImageDeleteResponseDTO(
+            'All images deleted successfully',
+            $deletedCount
+        );
 
-        $room->setImagePaths([]);
-        $this->entityManager->flush();
-
-        return new JsonResponse([
-            'code' => 200,
-            'message' => 'All images deleted successfully',
-            'deletedCount' => $deletedCount
-        ]);
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/{id}/images/{imageIndex}', name: 'rooms_delete_single_image', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
         path: '/api/rooms/{id}/images/{imageIndex}',
         summary: 'Delete a specific image/PDF by index',
@@ -1696,11 +1685,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -1710,75 +1699,69 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         if ($imageIndex < 0) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid image index'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        $imagePaths = $room->getImagePaths() ?? [];
-        if (empty($imagePaths) || !isset($imagePaths[$imageIndex])) {
+        $deletedPath = $this->roomService->removeImagePath($room, $imageIndex);
+        if (!$deletedPath) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Image not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        $deletedPath = $imagePaths[$imageIndex];
-        $uploadDir = $this->getParameter('kernel.project_dir') . '/public';
-        $filePath = $uploadDir . $deletedPath;
+        $this->fileUploadService->deleteFile(
+            $deletedPath,
+            $this->getParameter('kernel.project_dir')
+        );
 
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        $responseDTO = new ImageDeleteResponseDTO(
+            'Image deleted successfully',
+            null,
+            $deletedPath
+        );
 
-        unset($imagePaths[$imageIndex]);
-        $imagePaths = array_values($imagePaths);
-
-        $room->setImagePaths($imagePaths);
-        $this->entityManager->flush();
-
-        return new JsonResponse([
-            'code' => 200,
-            'message' => 'Image deleted successfully',
-            'deletedPath' => $deletedPath
-        ]);
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'rooms_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
         path: '/api/rooms/{id}',
         summary: 'Delete a room',
@@ -1833,11 +1816,11 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Access denied - Room belongs to different organization',
+                description: 'Forbidden - Requires ROLE_ADMIN or room belongs to different organization',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this room')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -1847,44 +1830,45 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $room = $this->roomService->getRoomById($uuid);
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $this->roomService->deleteRoom($room);
 
-        return new JsonResponse(null, 204);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
     #[Route('/{id}/favorite', name: 'rooms_toggle_favorite', methods: ['POST'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Post(
         path: '/api/rooms/{id}/favorite',
         summary: 'Toggle room as favorite for the current user',
@@ -1956,46 +1940,47 @@ class RoomController extends AbstractController
     {
         /** @var User|null $user */
         $user = $this->getUser();
-        
+
         if (!$user) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (Exception $e) {
             return new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $room = $this->roomService->getRoomById($uuid);
 
         if (!$room) {
             return new JsonResponse([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Room not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($room->getOrganization()->getId()->toRfc4122() !== $user->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->roomService->canUserAccessRoom($room, $user)) {
             return new JsonResponse([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this room'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $isFavorite = $this->roomService->toggleFavorite($room, $user);
         $message = $isFavorite ? 'Room added to favorites' : 'Room removed from favorites';
 
-        return new JsonResponse([
-            'code' => 200,
-            'message' => $message,
-            'isFavorite' => $isFavorite
-        ]);
+        $responseDTO = new FavoriteToggleResponseDTO(
+            $message,
+            $isFavorite
+        );
+
+        return new JsonResponse($responseDTO->toArray(), Response::HTTP_OK);
     }
 }

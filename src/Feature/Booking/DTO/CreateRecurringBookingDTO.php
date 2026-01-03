@@ -26,10 +26,9 @@ class CreateRecurringBookingDTO
 
     #[Assert\NotBlank]
     #[Assert\Count(min: 1, max: 7)]
-    /** @var array<int> Array of day numbers (1=Monday, 7=Sunday) */
     public array $daysOfWeek;
 
     #[Assert\NotBlank]
     #[Assert\Positive]
-    public int $weeksAhead = 12; // Default 3 months
+    public int $weeksAhead = 12;
 }

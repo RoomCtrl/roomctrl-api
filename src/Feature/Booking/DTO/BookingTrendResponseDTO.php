@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Feature\Booking\DTO;
 
-class BookingTrendResponseDTO
+readonly class BookingTrendResponseDTO
 {
     public function __construct(
         /** @var array<string, int> */
-        public readonly array $confirmed,
+        public array $confirmed,
         /** @var array<string, int> */
-        public readonly array $pending,
+        public array $pending,
         /** @var array<string, int> */
-        public readonly array $cancelled
-    ) {}
+        public array $cancelled
+    ) {
+    }
 }

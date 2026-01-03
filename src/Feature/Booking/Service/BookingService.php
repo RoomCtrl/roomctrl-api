@@ -15,24 +15,26 @@ use App\Feature\Booking\DTO\RecurringBookingResponseDTO;
 use App\Feature\Booking\DTO\UpdateBookingDTO;
 use App\Feature\Booking\Entity\Booking;
 use App\Feature\Booking\Repository\BookingRepository;
-use App\Feature\Mail\Service\MailService;
+use App\Feature\Mail\Service\MailServiceInterface;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\Room\Entity\Room;
+use App\Feature\Room\Repository\RoomRepository;
 use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
+use DateMalformedStringException;
 use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Uid\Uuid;
 
-class BookingService
+readonly class BookingService implements BookingServiceInterface
 {
     public function __construct(
-        private readonly BookingRepository $bookingRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly MailService $mailService,
-        private readonly UserRepository $userRepository
+        private BookingRepository $bookingRepository,
+        private RoomRepository $roomRepository,
+        private UserRepository $userRepository,
+        private MailServiceInterface $mailService
     ) {
     }
 
@@ -70,10 +72,8 @@ class BookingService
 
         $this->bookingRepository->save($booking, true);
 
-        // Send confirmation email to organizer
         $this->mailService->sendBookingConfirmation($user, $booking, $room, $booking->getParticipants()->toArray());
 
-        // Send invitation emails to participants
         foreach ($booking->getParticipants() as $participant) {
             $this->mailService->sendParticipantInvitation($participant, $booking, $room, $user);
         }
@@ -190,7 +190,6 @@ class BookingService
         $finalStartedAt = $startedAt ?? $booking->getStartedAt();
         $finalEndedAt = $endedAt ?? $booking->getEndedAt();
 
-        // Sprawdź czy data nie jest w przeszłości
         $now = new DateTimeImmutable();
         if ($finalStartedAt < $now) {
             throw new InvalidArgumentException('Cannot update booking to past date');
@@ -273,21 +272,31 @@ class BookingService
     public function getOccupancyRateByDayOfWeek(Organization $organization): array
     {
         $occupancyData = $this->bookingRepository->getOccupancyRateByDayOfWeek($organization);
-        
+
         $result = [];
         foreach ($occupancyData as $dayName => $rate) {
             $result[] = new OccupancyRateByDayDTO($dayName, $rate);
         }
-        
+
         return $result;
     }
 
-    public function getBookingsList(): array
+    public function getBookingsList(?User $user = null): array
     {
-        $bookings = $this->bookingRepository->findByCriteria([], ['startedAt' => 'ASC']);
+        if ($user === null) {
+            $bookings = $this->bookingRepository->findByCriteria([], ['startedAt' => 'ASC']);
+        } else {
+            // Filtruj bookings według organizacji użytkownika
+            $bookings = $this->bookingRepository->findByOrganization($user->getOrganization());
+
+            // Sortuj po startedAt
+            usort($bookings, function (Booking $a, Booking $b) {
+                return $a->getStartedAt() <=> $b->getStartedAt();
+            });
+        }
 
         return array_map(
-            fn(Booking $booking) => (new BookingResponseDTO($booking))->toArray(),
+            fn(Booking $booking) => new BookingResponseDTO($booking)->toArray(),
             $bookings
         );
     }
@@ -308,7 +317,7 @@ class BookingService
     {
         $uuid = $this->parseUuid($roomId);
 
-        $room = $this->entityManager->getRepository(Room::class)->find($uuid);
+        $room = $this->roomRepository->find($uuid);
         if (!$room) {
             throw new InvalidArgumentException('Room not found');
         }
@@ -320,7 +329,7 @@ class BookingService
     {
         try {
             return Uuid::fromString($uuidString);
-        } catch (Exception $e) {
+        } catch (Exception) {
             throw new InvalidArgumentException('Invalid UUID format');
         }
     }
@@ -329,7 +338,7 @@ class BookingService
     {
         try {
             return new DateTimeImmutable($dateTimeString);
-        } catch (Exception $e) {
+        } catch (Exception) {
             throw new InvalidArgumentException('Invalid date format');
         }
     }
@@ -345,7 +354,7 @@ class BookingService
         if ($conflictingBooking) {
             throw new InvalidArgumentException(
                 json_encode([
-                    'code' => 409,
+                    'code' => Response::HTTP_CONFLICT,
                     'message' => 'Time slot already booked'
                 ])
             );
@@ -357,11 +366,11 @@ class BookingService
         foreach ($participantIds as $participantId) {
             try {
                 $participantUuid = Uuid::fromString($participantId);
-                $participant = $this->entityManager->getRepository(User::class)->find($participantUuid);
+                $participant = $this->userRepository->find($participantUuid);
                 if ($participant) {
                     $booking->addParticipant($participant);
                 }
-            } catch (Exception $e) {
+            } catch (Exception) {
                 continue;
             }
         }
@@ -373,7 +382,7 @@ class BookingService
         $now = new DateTimeImmutable();
 
         $dayNames = ['Nie', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
-        
+
         $confirmed = array_fill_keys($dayNames, 0);
         $pending = array_fill_keys($dayNames, 0);
         $cancelled = array_fill_keys($dayNames, 0);
@@ -403,6 +412,9 @@ class BookingService
         );
     }
 
+    /**
+     * @throws DateMalformedStringException
+     */
     public function createRecurringBooking(
         Room $room,
         User $user,
@@ -415,27 +427,23 @@ class BookingService
         $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
         $createdBookings = [];
         $now = new DateTimeImmutable();
-        
-        // Calculate end date (weeksAhead from now)
-        $endDate = $now->modify("+{$weeksAhead} weeks");
 
-        // Start from tomorrow to avoid creating bookings in the past
+        $endDate = $now->modify("+$weeksAhead weeks");
+
         $currentDate = $now->modify('+1 day')->setTime(0, 0);
 
         while ($currentDate <= $endDate) {
-            $dayOfWeek = (int)$currentDate->format('N'); // 1=Monday, 7=Sunday
-            
+            $dayOfWeek = (int)$currentDate->format('N');
+
             if (in_array($dayOfWeek, $daysOfWeek)) {
-                // Parse time
                 [$startHour, $startMinute] = explode(':', $startTime);
                 [$endHour, $endMinute] = explode(':', $endTime);
-                
+
                 $startedAt = $currentDate->setTime((int)$startHour, (int)$startMinute);
                 $endedAt = $currentDate->setTime((int)$endHour, (int)$endMinute);
 
-                // Check for conflicts
                 $hasConflict = $this->findConflictingBooking($room, $startedAt, $endedAt);
-                
+
                 if (!$hasConflict) {
                     $booking = new Booking();
                     $booking->setTitle($title);
@@ -447,7 +455,7 @@ class BookingService
                     $booking->setIsPrivate(true);
                     $booking->setStatus('active');
 
-                    $this->entityManager->persist($booking);
+                    $this->bookingRepository->save($booking, false);
                     $createdBookings[] = $booking->getId()->toRfc4122();
                 }
             }
@@ -455,7 +463,7 @@ class BookingService
             $currentDate = $currentDate->modify('+1 day');
         }
 
-        $this->entityManager->flush();
+        $this->bookingRepository->flush();
 
         return new RecurringBookingResponseDTO(
             createdCount: count($createdBookings),

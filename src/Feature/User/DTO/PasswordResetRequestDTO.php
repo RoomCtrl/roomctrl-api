@@ -20,4 +20,3 @@ class PasswordResetRequestDTO
         return $dto;
     }
 }
-

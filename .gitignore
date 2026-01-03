@@ -26,3 +26,7 @@
 
 .DS_Store
 .idea
+###> phpunit/phpunit ###
+/phpunit.xml
+/.phpunit.cache/
+###< phpunit/phpunit ###

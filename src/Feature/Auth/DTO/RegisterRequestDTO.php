@@ -99,7 +99,7 @@ class RegisterRequestDTO
         $dto->regon = $data['regon'] ?? '';
         $dto->organizationName = $data['organizationName'] ?? '';
         $dto->organizationEmail = $data['organizationEmail'] ?? '';
-        
+
         return $dto;
     }
 }

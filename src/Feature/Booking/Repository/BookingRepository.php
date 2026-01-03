@@ -79,7 +79,7 @@ class BookingRepository extends ServiceEntityRepository
     public function getBookingCountsByUser(User $user): array
     {
         $qb = $this->createQueryBuilder('b');
-        
+
         $totalCount = (int) $qb
             ->select('COUNT(b.id)')
             ->where('b.user = :user')
@@ -125,7 +125,7 @@ class BookingRepository extends ServiceEntityRepository
     public function getBookingCountsByOrganization(Organization $organization): array
     {
         $qb = $this->createQueryBuilder('b');
-        
+
         $totalCount = (int) $qb
             ->select('COUNT(b.id)')
             ->join('b.user', 'u')
@@ -227,28 +227,34 @@ class BookingRepository extends ServiceEntityRepository
 
     public function getOccupancyRateByDayOfWeek(Organization $organization): array
     {
-        $connection = $this->getEntityManager()->getConnection();
+        $conn = $this->getEntityManager()->getConnection();
         
-        $sql = "
+        $sql = '
             SELECT 
                 EXTRACT(DOW FROM b.started_at) as day_of_week,
                 COUNT(b.id) as booking_count,
                 SUM(EXTRACT(EPOCH FROM (b.ended_at - b.started_at)) / 3600) as total_hours
             FROM bookings b
             JOIN users u ON b.user_id = u.id
-            WHERE u.organization_id = :organizationId
-            AND b.status IN ('active', 'completed')
-            GROUP BY EXTRACT(DOW FROM b.started_at)
-        ";
-
-        $result = $connection->executeQuery($sql, [
-            'organizationId' => $organization->getId()->toRfc4122()
+            WHERE u.organization_id = :organization_id
+              AND b.status IN (:status_active, :status_completed)
+            GROUP BY day_of_week
+        ';
+        
+        $result = $conn->executeQuery($sql, [
+            'organization_id' => $organization->getId()->toRfc4122(),
+            'status_active' => 'active',
+            'status_completed' => 'completed',
         ])->fetchAllAssociative();
 
-        $totalRooms = $connection->executeQuery(
-            "SELECT COUNT(id) FROM rooms WHERE organization_id = :organizationId",
-            ['organizationId' => $organization->getId()->toRfc4122()]
-        )->fetchOne();
+        $totalRooms = (int) $this->getEntityManager()
+            ->createQueryBuilder()
+            ->select('COUNT(r.id)')
+            ->from(Room::class, 'r')
+            ->where('r.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->getQuery()
+            ->getSingleScalarResult();
 
         $dayMapping = [
             1 => 'monday',
@@ -269,8 +275,8 @@ class BookingRepository extends ServiceEntityRepository
 
         foreach ($result as $row) {
             $dayOfWeek = (int) $row['day_of_week'];
-            $totalHours = (float) $row['total_hours'];
-            
+            $totalHours = (float) ($row['total_hours'] ?? 0);
+
             if (isset($dayMapping[$dayOfWeek]) && $availableHoursPerDay > 0) {
                 $dayName = $dayMapping[$dayOfWeek];
                 $occupancyRate = ($totalHours / $availableHoursPerDay) * 100;

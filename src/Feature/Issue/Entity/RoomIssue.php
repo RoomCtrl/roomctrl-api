@@ -13,7 +13,6 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: RoomIssueRepository::class)]
 #[ORM\Table(name: "room_issues")]
@@ -27,36 +26,26 @@ class RoomIssue
 
     #[ORM\ManyToOne(targetEntity: Room::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Room cannot be null.')]
     private ?Room $room = null;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Reporter cannot be null.')]
     private ?User $reporter = null;
 
     #[ORM\ManyToOne(targetEntity: Organization::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Organization cannot be null.')]
     private ?Organization $organization = null;
 
     #[ORM\Column(type: 'string', length: 50)]
-    #[Assert\NotBlank(message: 'Category cannot be blank.')]
-    #[Assert\Choice(choices: ['equipment', 'infrastructure', 'furniture'], message: 'Invalid category.')]
     private string $category;
 
     #[ORM\Column(type: 'text')]
-    #[Assert\NotBlank(message: 'Description cannot be blank.')]
     private string $description;
 
     #[ORM\Column(type: 'string', length: 20)]
-    #[Assert\NotBlank(message: 'Status cannot be blank.')]
-    #[Assert\Choice(choices: ['pending', 'in_progress', 'closed'], message: 'Invalid status.')]
     private string $status = 'pending';
 
     #[ORM\Column(type: 'string', length: 20)]
-    #[Assert\NotBlank(message: 'Priority cannot be blank.')]
-    #[Assert\Choice(choices: ['low', 'medium', 'high', 'critical'], message: 'Invalid priority.')]
     private string $priority = 'medium';
 
     #[ORM\Column(type: 'datetime_immutable')]
@@ -65,10 +54,10 @@ class RoomIssue
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $closedAt = null;
 
-    #[ORM\OneToMany(mappedBy: 'issue', targetEntity: IssueNote::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OneToMany(targetEntity: IssueNote::class, mappedBy: 'issue', cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $notes;
 
-    #[ORM\OneToMany(mappedBy: 'issue', targetEntity: IssueHistory::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OneToMany(targetEntity: IssueHistory::class, mappedBy: 'issue', cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
     private Collection $history;
 

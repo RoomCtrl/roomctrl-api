@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Feature\Organization\Controller;
 
-use App\Feature\Organization\Service\OrganizationService;
+use App\Feature\Organization\Service\OrganizationServiceInterface;
 use App\Feature\Organization\DTO\CreateOrganizationDTO;
+use App\Feature\Organization\DTO\OrganizationCreatedResponseDTO;
+use App\Feature\Organization\DTO\OrganizationUpdatedResponseDTO;
 use App\Feature\Organization\DTO\UpdateOrganizationDTO;
 use App\Common\Utility\ValidationErrorFormatter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use OpenApi\Attributes as OA;
@@ -23,12 +27,13 @@ use InvalidArgumentException;
 class OrganizationController extends AbstractController
 {
     public function __construct(
-        private readonly OrganizationService $organizationService,
+        private readonly OrganizationServiceInterface $organizationService,
         private readonly ValidatorInterface $validator
     ) {
     }
 
     #[Route('', name: 'organizations_list', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/organizations',
         summary: 'Get all organizations',
@@ -36,10 +41,10 @@ class OrganizationController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'withUsers',
+                description: 'Include users count',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'boolean'),
-                description: 'Include users count'
+                schema: new OA\Schema(type: 'boolean')
             )
         ],
         responses: [
@@ -68,6 +73,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -76,14 +91,16 @@ class OrganizationController extends AbstractController
         $withUsers = filter_var($request->query->get('withUsers', false), FILTER_VALIDATE_BOOLEAN);
         $organizations = $this->organizationService->getAllOrganizations();
 
-        $data = array_map(function ($organization) use ($withUsers) {
-            return $this->organizationService->serializeOrganization($organization, $withUsers);
-        }, $organizations);
+        $data = array_map(
+            fn($organization) => $this->organizationService->getOrganizationResponse($organization, $withUsers)->toArray(),
+            $organizations
+        );
 
-        return $this->json($data, 200);
+        return $this->json($data, Response::HTTP_OK);
     }
 
-    #[Route('/{id}', name: 'organizations_get', methods: ['GET'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'organizations_get', requirements: ['id' => '.+'], methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/organizations/{id}',
         summary: 'Get a single organization by ID',
@@ -91,17 +108,17 @@ class OrganizationController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: 'id',
+                description: 'Organization UUID',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'Organization UUID'
+                schema: new OA\Schema(type: 'string', format: 'uuid')
             ),
             new OA\Parameter(
                 name: 'withUsers',
+                description: 'Include users count',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'boolean'),
-                description: 'Include users count'
+                schema: new OA\Schema(type: 'boolean')
             )
         ],
         responses: [
@@ -137,6 +154,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -144,28 +171,32 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $organization = $this->organizationService->getOrganizationById($uuid);
 
         if (!$organization) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Organization not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $withUsers = filter_var($request->query->get('withUsers', false), FILTER_VALIDATE_BOOLEAN);
 
-        return $this->json($this->organizationService->serializeOrganization($organization, $withUsers), 200);
+        return $this->json(
+            $this->organizationService->getOrganizationResponse($organization, $withUsers)->toArray(),
+            Response::HTTP_OK
+        );
     }
 
     #[Route('', name: 'organizations_create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
         path: '/api/organizations',
         summary: 'Create a new organization',
@@ -223,6 +254,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -232,9 +273,9 @@ class OrganizationController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = CreateOrganizationDTO::fromArray($data);
@@ -243,40 +284,29 @@ class OrganizationController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
-            $result = $this->organizationService->createOrganization($data);
+            $organization = $this->organizationService->createOrganization($dto);
 
+            $response = new OrganizationCreatedResponseDTO($organization->getId()->toRfc4122());
+            return $this->json($response->toArray(), Response::HTTP_CREATED);
+        } catch (Exception) {
             return $this->json([
-                'code' => $result['code'],
-                'message' => $result['message'],
-                'id' => $result['id']
-            ], $result['code']);
-        } catch (Exception $e) {
-            return $this->json([
-                'code' => 409,
-                'message' => $e->getMessage()
-            ], 409);
+                'code' => Response::HTTP_CONFLICT,
+                'message' => 'This REGON or email is already registered.'
+            ], Response::HTTP_CONFLICT);
         }
     }
 
-    #[Route('/{id}', name: 'organizations_update', methods: ['PUT', 'PATCH'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'organizations_update', requirements: ['id' => '.+'], methods: ['PUT', 'PATCH'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Put(
         path: '/api/organizations/{id}',
         summary: 'Update an organization',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(
-                name: 'id',
-                in: 'path',
-                required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'Organization UUID'
-            )
-        ],
         requestBody: new OA\RequestBody(
             description: 'Organization data to update',
             required: true,
@@ -288,6 +318,15 @@ class OrganizationController extends AbstractController
                 ]
             )
         ),
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'Organization UUID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -329,6 +368,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -336,15 +385,6 @@ class OrganizationController extends AbstractController
         path: '/api/organizations/{id}',
         summary: 'Partially update an organization',
         security: [['Bearer' => []]],
-        parameters: [
-            new OA\Parameter(
-                name: 'id',
-                in: 'path',
-                required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'Organization UUID'
-            )
-        ],
         requestBody: new OA\RequestBody(
             description: 'Organization data to update (partial)',
             required: true,
@@ -356,6 +396,15 @@ class OrganizationController extends AbstractController
                 ]
             )
         ),
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'Organization UUID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -406,6 +455,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Unauthorized')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -413,29 +472,29 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $organization = $this->organizationService->getOrganizationById($uuid);
 
         if (!$organization) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Organization not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $data = json_decode($request->getContent(), true);
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = UpdateOrganizationDTO::fromArray($data);
@@ -444,38 +503,37 @@ class OrganizationController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
-            $result = $this->organizationService->updateOrganization($organization, $data);
+            $this->organizationService->updateOrganization($organization, $dto);
 
+            $response = new OrganizationUpdatedResponseDTO();
+            return $this->json($response->toArray(), Response::HTTP_OK);
+        } catch (Exception) {
             return $this->json([
-                'code' => $result['code'],
-                'message' => $result['message']
-            ], $result['code']);
-        } catch (Exception $e) {
-            return $this->json([
-                'code' => 409,
-                'message' => $e->getMessage()
-            ], 409);
+                'code' => Response::HTTP_CONFLICT,
+                'message' => 'This REGON or email is already registered.'
+            ], Response::HTTP_CONFLICT);
         }
     }
 
-    #[Route('/{id}', name: 'organizations_delete', methods: ['DELETE'], requirements: ['id' => '.+'])]
+    #[Route('/{id}', name: 'organizations_delete', requirements: ['id' => '.+'], methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
         path: '/api/organizations/{id}',
-        summary: 'Delete an organization',
         description: 'Deletes an organization only if it has no assigned users. All associated bookings will be cancelled and kept in history.',
+        summary: 'Delete an organization',
         security: [['Bearer' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
+                description: 'Organization UUID',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string', format: 'uuid'),
-                description: 'Organization UUID'
+                schema: new OA\Schema(type: 'string', format: 'uuid')
             )
         ],
         responses: [
@@ -532,6 +590,16 @@ class OrganizationController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'Failed to delete organization: ...')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -539,31 +607,28 @@ class OrganizationController extends AbstractController
     {
         try {
             $uuid = Uuid::fromString($id);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $organization = $this->organizationService->getOrganizationById($uuid);
 
         if (!$organization) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'Organization not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $result = $this->organizationService->deleteOrganization($organization);
 
-        if (!$result['success']) {
-            return $this->json([
-                'code' => $result['code'],
-                'message' => $result['message']
-            ], $result['code']);
+        if (!$result->isSuccess()) {
+            return $this->json($result->toArray(), $result->getCode());
         }
 
-        return new JsonResponse(null, 204);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 }

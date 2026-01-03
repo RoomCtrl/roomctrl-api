@@ -15,7 +15,6 @@ use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: "users")]
@@ -31,55 +30,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 180, unique: true)]
-    #[Assert\NotBlank(message: 'Username cannot be blank.')]
-    #[Assert\Length(
-        min: 3,
-        max: 180,
-        minMessage: 'Username must be at least {{ limit }} characters long.',
-        maxMessage: 'Username cannot be longer than {{ limit }} characters.'
-    )]
     private string $username;
 
     #[ORM\Column(type: 'json')]
-    #[Assert\NotNull]
     private array $roles = [];
 
     #[ORM\Column(type: 'string')]
-    #[Assert\NotBlank(message: 'Password cannot be blank.')]
     private string $password;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank(message: 'First name cannot be blank.')]
-    #[Assert\Length(
-        min: 2,
-        max: 255,
-        minMessage: 'First name must be at least {{ limit }} characters long.',
-        maxMessage: 'First name cannot be longer than {{ limit }} characters.'
-    )]
     private string $firstName;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank(message: 'Last name cannot be blank.')]
-    #[Assert\Length(
-        min: 2,
-        max: 255,
-        minMessage: 'Last name must be at least {{ limit }} characters long.',
-        maxMessage: 'Last name cannot be longer than {{ limit }} characters.'
-    )]
     private string $lastName;
 
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'users')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Organization cannot be null.')]
     private ?Organization $organization = null;
 
     #[ORM\Column(type: 'string', length: 100, unique: true)]
-    #[Assert\NotBlank(message: 'Email cannot be blank.')]
-    #[Assert\Email(message: 'The email "{{ value }}" is not a valid email.')]
     private string $email;
 
     #[ORM\Column(type: 'string', length: 20, unique: true)]
-    #[Assert\NotBlank(message: 'Phone cannot be blank.')]
     private string $phone;
 
     #[ORM\Column(type: 'boolean', options: ['default' => true])]

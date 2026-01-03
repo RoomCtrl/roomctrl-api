@@ -5,18 +5,11 @@ declare(strict_types=1);
 namespace App\Feature\Auth\EventListener;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 
 class CheckAuthenticationDataListener
 {
-    private RequestStack $requestStack;
-
-    public function __construct(RequestStack $requestStack)
-    {
-        $this->requestStack = $requestStack;
-    }
-
     public function onKernelRequest(RequestEvent $event): void
     {
         $request = $event->getRequest();
@@ -39,9 +32,9 @@ class CheckAuthenticationDataListener
 
         if ($error !== null) {
             $response = new JsonResponse([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => $error
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
             $event->setResponse($response);
             $event->stopPropagation();
         }

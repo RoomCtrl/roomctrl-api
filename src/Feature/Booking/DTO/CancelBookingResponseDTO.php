@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\Booking\DTO;
 
-use App\Feature\Booking\DTO\BookingResponseDTO;
+use Symfony\Component\HttpFoundation\Response;
 
 class CancelBookingResponseDTO
 {
@@ -20,7 +20,7 @@ class CancelBookingResponseDTO
     public function toArray(): array
     {
         return [
-            'code' => 200,
+            'code' => Response::HTTP_OK,
             'message' => $this->message,
             'booking' => $this->booking->toArray()
         ];

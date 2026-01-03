@@ -114,9 +114,9 @@ class IssueFixtures extends Fixture implements DependentFixtureInterface, Fixtur
             if ($status === 'in_progress' || $status === 'closed') {
                 $history2 = new IssueHistory();
                 $history2->setIssue($issue);
-                
+
                 $admin = $this->getReference("user-1", User::class);
-                
+
                 $history2->setUser($admin);
                 $history2->setAction('status_changed');
                 $history2->setDescription("Status changed to 'in_progress'");

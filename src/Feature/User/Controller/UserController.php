@@ -6,13 +6,16 @@ namespace App\Feature\User\Controller;
 
 use App\Common\Utility\ValidationErrorFormatter;
 use App\Feature\User\DTO\CreateUserDTO;
+use App\Feature\User\DTO\GenericSuccessResponseDTO;
+use App\Feature\User\DTO\NotificationSettingsResponseDTO;
 use App\Feature\User\DTO\PasswordResetConfirmDTO;
 use App\Feature\User\DTO\PasswordResetRequestDTO;
 use App\Feature\User\DTO\UpdateNotificationSettingsDTO;
 use App\Feature\User\DTO\UpdateUserDTO;
+use App\Feature\User\DTO\UserCreatedResponseDTO;
 use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
-use App\Feature\User\Service\UserService;
+use App\Feature\User\Service\UserServiceInterface;
 use Exception;
 use InvalidArgumentException;
 use OpenApi\Attributes as OA;
@@ -20,8 +23,10 @@ use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Twig\Error\LoaderError;
@@ -33,14 +38,14 @@ use Twig\Error\SyntaxError;
 class UserController extends AbstractController
 {
     public function __construct(
-        private readonly UserService         $userService,
-        private readonly UserRepository      $userRepository,
-        private readonly ValidatorInterface  $validator
-    )
-    {
+        private readonly UserServiceInterface $userService,
+        private readonly UserRepository $userRepository,
+        private readonly ValidatorInterface $validator
+    ) {
     }
 
     #[Route('', name: 'users_list', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(
         path: '/api/users',
         summary: 'Get all users',
@@ -95,6 +100,16 @@ class UserController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
+                    ]
+                )
             )
         ]
     )]
@@ -102,21 +117,22 @@ class UserController extends AbstractController
     {
         /** @var User|null $currentUser */
         $currentUser = $this->getUser();
-        
+
         if (!$currentUser) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
         $users = $this->userService->getAllUsers($withDetails, $currentUser->getOrganization());
 
-        return $this->json($users, 200);
+        return $this->json($users, Response::HTTP_OK);
     }
 
     #[Route('/settings/notifications', name: 'users_get_notification_settings', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/users/settings/notifications',
         summary: 'Get current email notification settings',
@@ -152,17 +168,18 @@ class UserController extends AbstractController
 
         if (!$user) {
             return $this->json([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'User not authenticated'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         return $this->json([
             'emailNotificationsEnabled' => $user->isEmailNotificationsEnabled()
-        ], 200);
+        ], Response::HTTP_OK);
     }
 
     #[Route('/settings/notifications', name: 'users_update_notification_settings', methods: ['PATCH'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Patch(
         path: '/api/users/settings/notifications',
         summary: 'Update email notification settings',
@@ -233,9 +250,9 @@ class UserController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = new UpdateNotificationSettingsDTO();
@@ -245,7 +262,7 @@ class UserController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
@@ -254,22 +271,23 @@ class UserController extends AbstractController
 
         if (!$user) {
             return $this->json([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'User not authenticated'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $user->setEmailNotificationsEnabled($dto->emailNotificationsEnabled);
         $this->userRepository->save($user, true);
 
-        return $this->json([
-            'code' => 200,
-            'message' => 'Notification settings updated successfully',
-            'emailNotificationsEnabled' => $user->isEmailNotificationsEnabled()
-        ], 200);
+        $responseDTO = new NotificationSettingsResponseDTO(
+            emailNotificationsEnabled: $user->isEmailNotificationsEnabled()
+        );
+
+        return $this->json($responseDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'users_get', requirements: ['id' => '.+'], methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/users/{id}',
         summary: 'Get a single user by ID',
@@ -355,21 +373,21 @@ class UserController extends AbstractController
     {
         /** @var User|null $currentUser */
         $currentUser = $this->getUser();
-        
+
         if (!$currentUser) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $withDetails = filter_var($request->query->get('withDetails', false), FILTER_VALIDATE_BOOLEAN);
@@ -377,23 +395,24 @@ class UserController extends AbstractController
 
         if (!$userDTO) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'User not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         $targetUser = $this->userRepository->findByUuid($uuid);
-        if ($targetUser && $targetUser->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+        if ($targetUser && !$this->userService->canCurrentUserAccessUser($targetUser, $currentUser)) {
             return $this->json([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this user'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
-        return $this->json($userDTO->toArray(), 200);
+        return $this->json($userDTO->toArray(), Response::HTTP_OK);
     }
 
     #[Route('', name: 'users_create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
         path: '/api/users',
         summary: 'Create a new user',
@@ -487,6 +506,16 @@ class UserController extends AbstractController
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Forbidden - Requires ROLE_ADMIN',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
+                    ]
+                )
             )
         ]
     )]
@@ -496,9 +525,9 @@ class UserController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = CreateUserDTO::fromArray($data);
@@ -507,51 +536,54 @@ class UserController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
             $user = $this->userService->createUser($dto);
 
-            return $this->json([
-                'code' => 201,
-                'message' => 'User created successfully',
-                'id' => $user->getId()->toRfc4122()
-            ], 201);
+            $responseDTO = new UserCreatedResponseDTO(
+                id: $user->getId()->toRfc4122()
+            );
+
+            return $this->json($responseDTO->toArray(), Response::HTTP_CREATED);
         } catch (InvalidArgumentException $e) {
-            if (str_contains($e->getMessage(), 'username') || 
-                str_contains($e->getMessage(), 'email') || 
-                str_contains($e->getMessage(), 'phone')) {
+            if (
+                str_contains($e->getMessage(), 'username') ||
+                str_contains($e->getMessage(), 'email') ||
+                str_contains($e->getMessage(), 'phone')
+            ) {
                 return $this->json([
-                    'code' => 409,
+                    'code' => Response::HTTP_CONFLICT,
                     'message' => $e->getMessage()
-                ], 409);
+                ], Response::HTTP_CONFLICT);
             }
 
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => $e->getMessage()
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         } catch (Exception $e) {
             // Obsługa naruszenia unique constraint z bazy danych
             if (str_contains($e->getMessage(), '23505') || str_contains($e->getMessage(), 'duplicate key')) {
                 if (str_contains($e->getMessage(), 'username')) {
                     return $this->json([
-                        'code' => 409,
+                        'code' => Response::HTTP_CONFLICT,
                         'message' => 'This username is already taken.'
-                    ], 409);
+                    ], Response::HTTP_CONFLICT);
                 }
             }
 
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to create user'
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     #[Route('/{id}', name: 'users_update', requirements: ['id' => '.+'], methods: ['PUT', 'PATCH'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Put(
         path: '/api/users/{id}',
         summary: 'Update a user',
@@ -659,7 +691,7 @@ class UserController extends AbstractController
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -772,7 +804,7 @@ class UserController extends AbstractController
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied to this user')
+                        new OA\Property(property: 'message', type: 'string', example: 'Access denied')
                     ]
                 )
             )
@@ -782,46 +814,46 @@ class UserController extends AbstractController
     {
         /** @var User|null $currentUser */
         $currentUser = $this->getUser();
-        
+
         if (!$currentUser) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $user = $this->userRepository->findByUuid($uuid);
 
         if (!$user) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'User not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($user->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->userService->canCurrentUserAccessUser($user, $currentUser)) {
             return $this->json([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this user'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $data = json_decode($request->getContent(), true);
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = UpdateUserDTO::fromArray($data);
@@ -830,40 +862,42 @@ class UserController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
             $this->userService->updateUser($user, $dto);
 
-            return $this->json([
-                'code' => 200,
-                'message' => 'User updated successfully'
-            ], 200);
+            $responseDTO = new GenericSuccessResponseDTO('User updated successfully');
+
+            return $this->json($responseDTO->toArray(), Response::HTTP_OK);
         } catch (InvalidArgumentException $e) {
-            if (str_contains($e->getMessage(), 'username') || 
-                str_contains($e->getMessage(), 'email') || 
-                str_contains($e->getMessage(), 'phone')) {
+            if (
+                str_contains($e->getMessage(), 'username') ||
+                str_contains($e->getMessage(), 'email') ||
+                str_contains($e->getMessage(), 'phone')
+            ) {
                 return $this->json([
-                    'code' => 409,
+                    'code' => Response::HTTP_CONFLICT,
                     'message' => $e->getMessage()
-                ], 409);
+                ], Response::HTTP_CONFLICT);
             }
 
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => $e->getMessage()
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         } catch (Exception) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to update user'
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     #[Route('/{id}', name: 'users_delete', requirements: ['id' => '.+'], methods: ['DELETE'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Delete(
         path: '/api/users/{id}',
         summary: 'Delete a user',
@@ -924,51 +958,50 @@ class UserController extends AbstractController
     {
         /** @var User|null $currentUser */
         $currentUser = $this->getUser();
-        
+
         if (!$currentUser) {
             return new JsonResponse([
-                'code' => 401,
+                'code' => Response::HTTP_UNAUTHORIZED,
                 'message' => 'Unauthorized'
-            ], 401);
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         try {
             $uuid = Uuid::fromString($id);
         } catch (InvalidArgumentException) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid UUID format'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $user = $this->userRepository->findByUuid($uuid);
 
         if (!$user) {
             return $this->json([
-                'code' => 404,
+                'code' => Response::HTTP_NOT_FOUND,
                 'message' => 'User not found'
-            ], 404);
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        if ($user->getOrganization()->getId()->toRfc4122() !== $currentUser->getOrganization()->getId()->toRfc4122()) {
+        if (!$this->userService->canCurrentUserAccessUser($user, $currentUser)) {
             return $this->json([
-                'code' => 403,
+                'code' => Response::HTTP_FORBIDDEN,
                 'message' => 'Access denied to this user'
-            ], 403);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         try {
             $this->userService->deleteUser($user);
 
-            return $this->json([
-                'code' => 200,
-                'message' => 'User deleted successfully'
-            ], 200);
+            $responseDTO = new GenericSuccessResponseDTO('User deleted successfully');
+
+            return $this->json($responseDTO->toArray(), Response::HTTP_OK);
         } catch (Exception $e) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to delete user: ' . $e->getMessage()
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1039,9 +1072,9 @@ class UserController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = PasswordResetRequestDTO::fromArray($data);
@@ -1050,22 +1083,21 @@ class UserController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
         try {
             $this->userService->requestPasswordReset($dto->email);
 
-            return $this->json([
-                'code' => 200,
-                'message' => 'If the email exists, a password reset link has been sent'
-            ], 200);
+            $responseDTO = new GenericSuccessResponseDTO('If the email exists, a password reset link has been sent');
+
+            return $this->json($responseDTO->toArray(), Response::HTTP_OK);
         } catch (Exception) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to send password reset email'
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1135,9 +1167,9 @@ class UserController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dto = PasswordResetConfirmDTO::fromArray($data);
@@ -1146,7 +1178,7 @@ class UserController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
@@ -1158,20 +1190,19 @@ class UserController extends AbstractController
 
             if (!$success) {
                 return $this->json([
-                    'code' => 400,
+                    'code' => Response::HTTP_BAD_REQUEST,
                     'message' => 'Invalid or expired reset token'
-                ], 400);
+                ], Response::HTTP_BAD_REQUEST);
             }
 
-            return $this->json([
-                'code' => 200,
-                'message' => 'Password has been successfully reset'
-            ], 200);
+            $responseDTO = new GenericSuccessResponseDTO('Password has been successfully reset');
+
+            return $this->json($responseDTO->toArray(), Response::HTTP_OK);
         } catch (Exception) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to reset password'
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 }

@@ -4,23 +4,24 @@ declare(strict_types=1);
 
 namespace App\Feature\Organization\Service;
 
+use App\Feature\Organization\DTO\CreateOrganizationDTO;
+use App\Feature\Organization\DTO\OrganizationDeleteResultDTO;
+use App\Feature\Organization\DTO\OrganizationResponseDTO;
+use App\Feature\Organization\DTO\UpdateOrganizationDTO;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\Organization\Repository\OrganizationRepository;
-use App\Feature\Room\Service\RoomService;
-use App\Feature\Booking\Service\BookingService;
-use App\Feature\Room\Entity\Room;
-use App\Feature\Booking\Entity\Booking;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Feature\Booking\Repository\BookingRepository;
+use App\Feature\Room\Repository\RoomRepository;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Uid\Uuid;
 use Exception;
 
-class OrganizationService
+readonly class OrganizationService implements OrganizationServiceInterface
 {
     public function __construct(
-        private readonly OrganizationRepository $organizationRepository,
-        private readonly RoomService $roomService,
-        private readonly BookingService $bookingService,
-        private readonly EntityManagerInterface $entityManager
+        private OrganizationRepository $organizationRepository,
+        private RoomRepository $roomRepository,
+        private BookingRepository $bookingRepository
     ) {
     }
 
@@ -34,115 +35,70 @@ class OrganizationService
         return $this->organizationRepository->findById($id);
     }
 
-    public function createOrganization(array $data): array
+    public function createOrganization(CreateOrganizationDTO $dto): Organization
     {
-        try {
-            $organization = new Organization();
-            $organization->setRegon($data['regon']);
-            $organization->setName($data['name']);
-            $organization->setEmail($data['email']);
+        $organization = new Organization();
+        $organization->setRegon($dto->regon);
+        $organization->setName($dto->name);
+        $organization->setEmail($dto->email);
 
-            $this->organizationRepository->save($organization, true);
+        $this->organizationRepository->save($organization, true);
 
-            return [
-                'code' => 201,
-                'message' => 'Organization created successfully',
-                'id' => $organization->getId()->toRfc4122()
-            ];
-        } catch (Exception $e) {
-            throw new Exception('This REGON or email is already registered.');
-        }
+        return $organization;
     }
 
-    public function updateOrganization(Organization $organization, array $data): array
+    public function updateOrganization(Organization $organization, UpdateOrganizationDTO $dto): void
     {
-        try {
-            if (isset($data['regon'])) {
-                $organization->setRegon($data['regon']);
-            }
-
-            if (isset($data['name'])) {
-                $organization->setName($data['name']);
-            }
-
-            if (isset($data['email'])) {
-                $organization->setEmail($data['email']);
-            }
-
-            $this->organizationRepository->flush();
-
-            return [
-                'code' => 200,
-                'message' => 'Organization updated successfully'
-            ];
-        } catch (Exception $e) {
-            throw new Exception('This REGON or email is already registered.');
+        if ($dto->regon !== null) {
+            $organization->setRegon($dto->regon);
         }
+
+        if ($dto->name !== null) {
+            $organization->setName($dto->name);
+        }
+
+        if ($dto->email !== null) {
+            $organization->setEmail($dto->email);
+        }
+
+        $this->organizationRepository->flush();
     }
 
-    public function deleteOrganization(Organization $organization): array
+    public function deleteOrganization(Organization $organization): OrganizationDeleteResultDTO
     {
         try {
-            // Sprawdź czy organizacja ma przypisanych userów
             $usersCount = $organization->getUsers()->count();
             if ($usersCount > 0) {
-                return [
-                    'success' => false,
-                    'code' => 409,
-                    'message' => 'Cannot delete organization with assigned users. Please remove or reassign users first.'
-                ];
+                return OrganizationDeleteResultDTO::conflict(
+                    'Cannot delete organization with assigned users. Please remove or reassign users first.'
+                );
             }
 
-            // Pobierz wszystkie pokoje organizacji
-            $rooms = $this->entityManager->getRepository(Room::class)
-                ->findBy(['organization' => $organization]);
-            
-            // Dla każdego pokoju anuluj wszystkie rezerwacje
+            $rooms = $this->roomRepository->findBy(['organization' => $organization]);
+
             foreach ($rooms as $room) {
-                $bookings = $this->entityManager->getRepository(Booking::class)
-                    ->findBy(['room' => $room]);
-                
+                $bookings = $this->bookingRepository->findBy(['room' => $room]);
+
                 foreach ($bookings as $booking) {
-                    // Anuluj rezerwację tylko jeśli nie jest już anulowana
                     if ($booking->getStatus() !== 'cancelled') {
                         $booking->setStatus('cancelled');
-                        $this->entityManager->persist($booking);
+                        $this->bookingRepository->save($booking, false);
                     }
                 }
             }
 
-            // Flush aby zapisać zmienione rezerwacje
-            $this->entityManager->flush();
+            $this->bookingRepository->flush();
 
-            // Usuń organizację
             $this->organizationRepository->remove($organization, true);
 
-            return [
-                'success' => true,
-                'code' => 204
-            ];
+            return OrganizationDeleteResultDTO::success();
         } catch (Exception $e) {
-            return [
-                'success' => false,
-                'code' => 500,
-                'message' => 'Failed to delete organization: ' . $e->getMessage()
-            ];
+            return OrganizationDeleteResultDTO::error('Failed to delete organization: ' . $e->getMessage());
         }
     }
 
-    public function serializeOrganization(Organization $organization, bool $withUsers = false): array
+    public function getOrganizationResponse(Organization $organization, bool $withUsers = false): OrganizationResponseDTO
     {
-        $data = [
-            'id' => $organization->getId()->toRfc4122(),
-            'regon' => $organization->getRegon(),
-            'name' => $organization->getName(),
-            'email' => $organization->getEmail()
-        ];
-
-        if ($withUsers) {
-            $data['usersCount'] = $organization->getUsers()->count();
-        }
-
-        return $data;
+        return OrganizationResponseDTO::fromEntity($organization, $withUsers);
     }
 }

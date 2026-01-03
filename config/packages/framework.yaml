@@ -17,6 +17,16 @@ framework:
     php_errors:
         log: true
 
+when@dev:
+    framework:
+        profiler:
+            only_exceptions: false
+
+when@prod:
+    framework:
+        trusted_proxies: '%env(TRUSTED_PROXIES)%'
+        trusted_hosts: ['%env(TRUSTED_HOSTS)%']
+
 when@test:
     framework:
         test: true

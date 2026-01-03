@@ -8,8 +8,9 @@ use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use App\Feature\Mail\Service\MailService;
+use App\Feature\Mail\Service\MailServiceInterface;
 use OpenApi\Attributes as OA;
 
 #[OA\Tag(name: 'Mails')]
@@ -55,7 +56,7 @@ class MailController extends AbstractController
             )
         ]
     )]
-    public function sendMail(Request $request, MailService $mailService): JsonResponse
+    public function sendMail(Request $request, MailServiceInterface $mailService): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
         $validationError = $mailService->validateMailFields($data, ['to', 'subject', 'content'], 'to');
@@ -64,12 +65,12 @@ class MailController extends AbstractController
         }
         try {
             $result = $mailService->sendEmail($data);
-            return $this->json($result);
+            return $this->json($result->toArray());
         } catch (Exception $e) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to send email: ' . $e->getMessage()
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -114,7 +115,7 @@ class MailController extends AbstractController
             )
         ]
     )]
-    public function contactForm(Request $request, MailService $mailService): JsonResponse
+    public function contactForm(Request $request, MailServiceInterface $mailService): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
         $validationError = $mailService->validateMailFields($data, ['name', 'email', 'subject', 'message'], 'email');
@@ -122,16 +123,13 @@ class MailController extends AbstractController
             return $this->json($validationError, $validationError['code']);
         }
         try {
-            $mailService->sendContactFormEmail($data);
-            return $this->json([
-                'code' => 200,
-                'message' => 'Your message has been sent successfully'
-            ]);
+            $result = $mailService->sendContactFormEmail($data);
+            return $this->json($result->toArray());
         } catch (Exception $e) {
             return $this->json([
-                'code' => 500,
+                'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
                 'message' => 'Failed to send message: ' . $e->getMessage()
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 }

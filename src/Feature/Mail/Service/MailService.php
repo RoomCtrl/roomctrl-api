@@ -4,23 +4,29 @@ declare(strict_types=1);
 
 namespace App\Feature\Mail\Service;
 
+use App\Feature\Booking\Entity\Booking;
+use App\Feature\Mail\DTO\ContactFormSentResponseDTO;
+use App\Feature\Mail\DTO\MailSentResponseDTO;
+use App\Feature\Room\Entity\Room;
+use App\Feature\User\Entity\User;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Twig\Environment;
+use Twig\Error\LoaderError;
+use Twig\Error\RuntimeError;
+use Twig\Error\SyntaxError;
 
-class MailService
+readonly class MailService implements MailServiceInterface
 {
-    private MailerInterface $mailer;
-    private string $fromAddress;
-    private Environment $twig;
-    private string $contactEmail;
+    private const string CONTACT_EMAIL = 'roomctrlinfo@gmail.com';
 
-    public function __construct(MailerInterface $mailer, Environment $twig, ?string $fromAddress = null)
-    {
-        $this->mailer = $mailer;
-        $this->twig = $twig;
-        $this->fromAddress = $fromAddress ?? $_ENV['MAIL_FROM_ADDRESS'];
-        $this->contactEmail = 'roomctrlinfo@gmail.com';
+    public function __construct(
+        private MailerInterface $mailer,
+        private Environment $twig,
+        private string $fromAddress
+    ) {
     }
 
     public function validateMailFields(array $data, array $requiredFields, string $emailField = 'email'): ?array
@@ -33,14 +39,14 @@ class MailService
         }
         if (count($missingFields) > 0) {
             return [
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Missing or empty required parameters: ' . implode(', ', $missingFields)
             ];
         }
         if (isset($data[$emailField])) {
             if (!filter_var($data[$emailField], FILTER_VALIDATE_EMAIL)) {
                 return [
-                    'code' => 400,
+                    'code' => Response::HTTP_BAD_REQUEST,
                     'message' => 'Invalid email format'
                 ];
             }
@@ -48,7 +54,13 @@ class MailService
         return null;
     }
 
-    public function sendEmail(array $data): array
+    /**
+     * @throws SyntaxError
+     * @throws TransportExceptionInterface
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
+    public function sendEmail(array $data): MailSentResponseDTO
     {
         $sanitized = [
             'to' => isset($data['to']) ? $this->sanitizeMailField($data['to']) : '',
@@ -57,7 +69,7 @@ class MailService
         ];
         $htmlContent = $this->renderEmailTemplate($sanitized['content'], $sanitized['subject']);
 
-        $email = (new Email())
+        $email = new Email()
             ->from($this->fromAddress)
             ->to($sanitized['to'])
             ->subject($sanitized['subject'])
@@ -66,30 +78,41 @@ class MailService
 
         $this->mailer->send($email);
 
-        return [
-            'code' => 200,
-            'message' => 'Email has been sent successfully'
-        ];
+        return new MailSentResponseDTO();
     }
 
-    public function sendContactFormEmail(array $data): array
+    /**
+     * @throws SyntaxError
+     * @throws TransportExceptionInterface
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
+    public function sendContactFormEmail(array $data): ContactFormSentResponseDTO
     {
         $emailData = [
-            'to' => $this->contactEmail,
+            'to' => self::CONTACT_EMAIL,
             'subject' => '[Contact Form] ' . $this->sanitizeMailField($data['subject']),
             'content' => $this->sanitizeMailField($this->formatContactMessage($data))
         ];
-        return $this->sendEmail($emailData);
+        $this->sendEmail($emailData);
+
+        return new ContactFormSentResponseDTO();
     }
 
-    public function sendWelcomeEmail($user, $organization): void
+    /**
+     * @throws SyntaxError
+     * @throws TransportExceptionInterface
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
+    public function sendWelcomeEmail(User $user, mixed $organization): void
     {
         $html = $this->twig->render('emails/welcome_email.html.twig', [
             'user' => $user,
             'organization' => $organization,
         ]);
 
-        $email = (new Email())
+        $email = new Email()
             ->from($this->fromAddress)
             ->to($user->getEmail())
             ->subject('Welcome to RoomCtrl')
@@ -98,7 +121,13 @@ class MailService
         $this->mailer->send($email);
     }
 
-    public function sendBookingConfirmation($user, $booking, $room, array $participants = []): void
+    /**
+     * @throws SyntaxError
+     * @throws TransportExceptionInterface
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
+    public function sendBookingConfirmation(User $user, Booking $booking, Room $room, array $participants = []): void
     {
         if (!$user->isEmailNotificationsEnabled()) {
             return;
@@ -111,7 +140,7 @@ class MailService
             'participants' => $participants,
         ]);
 
-        $email = (new Email())
+        $email = new Email()
             ->from($this->fromAddress)
             ->to($user->getEmail())
             ->subject('Booking Confirmation: ' . $booking->getTitle())
@@ -120,7 +149,13 @@ class MailService
         $this->mailer->send($email);
     }
 
-    public function sendParticipantInvitation($participant, $booking, $room, $organizer): void
+    /**
+     * @throws SyntaxError
+     * @throws TransportExceptionInterface
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
+    public function sendParticipantInvitation(User $participant, Booking $booking, Room $room, User $organizer): void
     {
         if (!$participant->isEmailNotificationsEnabled()) {
             return;
@@ -133,7 +168,7 @@ class MailService
             'organizer' => $organizer,
         ]);
 
-        $email = (new Email())
+        $email = new Email()
             ->from($this->fromAddress)
             ->to($participant->getEmail())
             ->subject('Meeting Invitation: ' . $booking->getTitle())
@@ -152,6 +187,11 @@ class MailService
             "This message was sent through the website contact form.";
     }
 
+    /**
+     * @throws SyntaxError
+     * @throws RuntimeError
+     * @throws LoaderError
+     */
     private function renderEmailTemplate(string $content, string $subject): string
     {
         $htmlContent = nl2br(htmlspecialchars($content));
@@ -170,10 +210,9 @@ class MailService
 
         $dangerous = ['script', 'iframe', 'style', 'object', 'embed'];
         foreach ($dangerous as $tag) {
-            $value = preg_replace('#<'.$tag.'\b[^>]*>(.*?)</'.$tag.'>#is', '', $value);
-            $value = preg_replace('#<'.$tag.'\b[^>]*>#is', '', $value);
+            $value = preg_replace('#<' . $tag . '\b[^>]*>(.*?)</' . $tag . '>#is', '', $value);
+            $value = preg_replace('#<' . $tag . '\b[^>]*>#is', '', $value);
         }
-        $value = trim($value);
-        return $value;
+        return trim($value);
     }
 }

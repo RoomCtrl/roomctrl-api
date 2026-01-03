@@ -228,7 +228,7 @@ class BookingRepository extends ServiceEntityRepository
     public function getOccupancyRateByDayOfWeek(Organization $organization): array
     {
         $conn = $this->getEntityManager()->getConnection();
-        
+
         $sql = '
             SELECT 
                 EXTRACT(DOW FROM b.started_at) as day_of_week,
@@ -240,7 +240,7 @@ class BookingRepository extends ServiceEntityRepository
               AND b.status IN (:status_active, :status_completed)
             GROUP BY day_of_week
         ';
-        
+
         $result = $conn->executeQuery($sql, [
             'organization_id' => $organization->getId()->toRfc4122(),
             'status_active' => 'active',

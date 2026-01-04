@@ -29,12 +29,11 @@ FROM php:8.4-fpm-alpine
 RUN apk update && apk add --no-cache \
     postgresql-client \
     icu-libs \
+    libzip \
     && rm -rf /var/cache/apk/*
 
-RUN docker-php-ext-install \
-    pdo_pgsql \
-    intl \
-    opcache
+COPY --from=builder /usr/local/lib/php/extensions/no-debug-non-zts-20240924/ /usr/local/lib/php/extensions/no-debug-non-zts-20240924/
+COPY --from=builder /usr/local/etc/php/conf.d/docker-php-ext-*.ini /usr/local/etc/php/conf.d/
 
 RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/docker-php-memlimit.ini && \
     echo "upload_max_filesize = 20M" >> /usr/local/etc/php/conf.d/docker-php-upload.ini && \
@@ -49,8 +48,22 @@ WORKDIR /var/www/html
 
 COPY --from=builder /var/www/html /var/www/html
 
-RUN chown -R www-data:www-data /var/www/html && \
-    chmod -R 755 /var/www/html
+RUN find /var/www/html/src -type d -name "DataFixtures" -exec rm -rf {} + 2>/dev/null || true
+
+RUN mkdir -p /var/www/html/var/cache /var/www/html/var/log /var/www/html/public/uploads/rooms && \
+    chown -R www-data:www-data /var/www/html && \
+    chmod -R 755 /var/www/html && \
+    chmod -R 777 /var/www/html/var && \
+    chmod -R 777 /var/www/html/public/uploads
+
+USER www-data
+RUN php bin/console cache:clear --env=prod --no-debug || true && \
+    php bin/console cache:warmup --env=prod --no-debug || true
+
+USER root
+RUN chown -R www-data:www-data /var/www/html/var
+
+USER www-data
 
 EXPOSE 9000
 

@@ -376,10 +376,24 @@ docker-compose -f docker-compose.prod.yml up -d
 #### 5. Migracje bazy danych
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec app php bin/console doctrine:migrations:migrate --no-interaction
+docker-compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
 ```
 
-#### 6. Sprawdź health
+#### 6. Uprawnienia dla katalogów (jeśli potrzebne)
+
+```bash
+# Upewnij się, że katalog uploads ma odpowiednie uprawnienia
+docker-compose -f docker-compose.prod.yml exec php chown -R www-data:www-data /var/www/html/public/uploads
+docker-compose -f docker-compose.prod.yml exec php chmod -R 775 /var/www/html/public/uploads
+```
+
+**WAŻNE:** 
+- Katalog `public/uploads/rooms` jest automatycznie tworzony przez Dockerfile
+- Volume `/public/uploads` jest montowany z hosta do kontenera PHP i nginx
+- Dzięki temu uploadowane zdjęcia są trwale przechowywane poza kontenerem
+- Nginx ma dostęp do plików w trybie read-write dla poprawnego serwowania uploadów
+
+#### 7. Sprawdź health
 
 ```bash
 # Status kontenerów

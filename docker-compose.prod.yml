@@ -12,8 +12,11 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
       - JWT_PASSPHRASE=${JWT_PASSPHRASE}
+      - TRUSTED_HOSTS=${TRUSTED_HOSTS:-.*}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     volumes:
       - ./public/uploads:/var/www/html/public/uploads
+      - var_cache:/var/www/html/var
     networks:
       - roomctrl_network
 
@@ -26,6 +29,7 @@ services:
       - "443:443"
     volumes:
       - ./public:/var/www/html/public:ro
+      - ./public/uploads:/var/www/html/public/uploads:rw
       - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
@@ -48,6 +52,7 @@ services:
 
 volumes:
   postgres_data:
+  var_cache:
 
 networks:
   roomctrl_network:

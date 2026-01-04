@@ -63,8 +63,10 @@ RUN php bin/console cache:clear --env=prod --no-debug || true && \
 USER root
 RUN chown -R www-data:www-data /var/www/html/var
 
-USER www-data
+COPY docker/entrypoint.prod.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 9000
 
-CMD ["php-fpm"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["php-fpm", "-F"]

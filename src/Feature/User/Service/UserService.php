@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace App\Feature\User\Service;
 
 use App\Feature\Booking\Entity\Booking;
+use App\Feature\Booking\Repository\BookingRepository;
 use App\Feature\Organization\Entity\Organization;
+use App\Feature\Organization\Repository\OrganizationRepository;
 use App\Feature\User\DTO\CreateUserDTO;
 use App\Feature\User\DTO\UpdateUserDTO;
 use App\Feature\User\DTO\UserResponseDTO;
 use App\Feature\User\Entity\User;
 use App\Feature\User\Repository\UserRepository;
 use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Random\RandomException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
@@ -26,18 +27,18 @@ use Twig\Error\LoaderError;
 use Twig\Error\RuntimeError;
 use Twig\Error\SyntaxError;
 
-readonly class UserService
+readonly class UserService implements UserServiceInterface
 {
     public function __construct(
-        private UserRepository              $userRepository,
-        private EntityManagerInterface      $entityManager,
+        private UserRepository $userRepository,
+        private OrganizationRepository $organizationRepository,
+        private BookingRepository $bookingRepository,
         private UserPasswordHasherInterface $passwordHasher,
-        private ValidatorInterface          $validator,
-        private MailerInterface             $mailer,
-        private Environment                 $twig,
-        private string                      $mailFromAddress
-    )
-    {
+        private ValidatorInterface $validator,
+        private MailerInterface $mailer,
+        private Environment $twig,
+        private string $mailFromAddress
+    ) {
     }
 
     public function getAllUsers(bool $withDetails = false, ?Organization $organization = null): array
@@ -83,7 +84,7 @@ readonly class UserService
         }
 
         $organizationUuid = Uuid::fromString($dto->organizationId);
-        $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
+        $organization = $this->organizationRepository->find($organizationUuid);
 
         if (!$organization) {
             throw new InvalidArgumentException('Organization not found');
@@ -161,7 +162,7 @@ readonly class UserService
 
         if ($dto->organizationId !== null) {
             $organizationUuid = Uuid::fromString($dto->organizationId);
-            $organization = $this->entityManager->getRepository(Organization::class)->find($organizationUuid);
+            $organization = $this->organizationRepository->find($organizationUuid);
 
             if (!$organization) {
                 throw new InvalidArgumentException('Organization not found');
@@ -179,15 +180,14 @@ readonly class UserService
 
     public function deleteUser(User $user): void
     {
-        $activeBookings = $this->entityManager->getRepository(Booking::class)
-            ->findBy(['user' => $user, 'status' => 'active']);
+        $activeBookings = $this->bookingRepository->findBy(['user' => $user, 'status' => 'active']);
 
         foreach ($activeBookings as $booking) {
             $booking->setStatus('cancelled');
         }
 
         if (!empty($activeBookings)) {
-            $this->entityManager->flush();
+            $this->bookingRepository->flush();
         }
 
         $this->userRepository->remove($user, true);
@@ -291,5 +291,14 @@ readonly class UserService
         $this->userRepository->flush();
 
         return true;
+    }
+
+    public function canCurrentUserAccessUser(User $targetUser, User $currentUser): bool
+    {
+        if (in_array('ROLE_ADMIN', $currentUser->getRoles(), true)) {
+            return $targetUser->getOrganization()->getId()->toRfc4122() === $currentUser->getOrganization()->getId()->toRfc4122();
+        }
+
+        return $targetUser->getId()->toRfc4122() === $currentUser->getId()->toRfc4122();
     }
 }

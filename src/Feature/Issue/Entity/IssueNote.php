@@ -8,7 +8,6 @@ use App\Feature\User\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
 #[ORM\Table(name: "issue_notes")]
@@ -22,16 +21,13 @@ class IssueNote
 
     #[ORM\ManyToOne(targetEntity: RoomIssue::class, inversedBy: 'notes')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Issue cannot be null.')]
     private ?RoomIssue $issue = null;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Author cannot be null.')]
     private ?User $author = null;
 
     #[ORM\Column(type: 'text')]
-    #[Assert\NotBlank(message: 'Content cannot be blank.')]
     private string $content;
 
     #[ORM\Column(type: 'datetime_immutable')]

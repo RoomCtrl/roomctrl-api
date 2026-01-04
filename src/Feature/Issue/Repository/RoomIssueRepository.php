@@ -59,93 +59,45 @@ class RoomIssueRepository extends ServiceEntityRepository
 
     public function getIssueCountsByUser(User $user): array
     {
-        $qb = $this->createQueryBuilder('i');
-        
-        $totalCount = (int) $qb
-            ->select('COUNT(i.id)')
+        $result = $this->createQueryBuilder('i')
+            ->select(
+                'COUNT(i.id) as count',
+                "SUM(CASE WHEN i.status = 'pending' THEN 1 ELSE 0 END) as pending",
+                "SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress",
+                "SUM(CASE WHEN i.status = 'closed' THEN 1 ELSE 0 END) as closed"
+            )
             ->where('i.reporter = :user')
             ->setParameter('user', $user)
             ->getQuery()
-            ->getSingleScalarResult();
-
-        $pendingCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.reporter = :user')
-            ->andWhere('i.status = :status')
-            ->setParameter('user', $user)
-            ->setParameter('status', 'pending')
-            ->getQuery()
-            ->getSingleScalarResult();
-
-        $inProgressCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.reporter = :user')
-            ->andWhere('i.status = :status')
-            ->setParameter('user', $user)
-            ->setParameter('status', 'in_progress')
-            ->getQuery()
-            ->getSingleScalarResult();
-
-        $closedCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.reporter = :user')
-            ->andWhere('i.status = :status')
-            ->setParameter('user', $user)
-            ->setParameter('status', 'closed')
-            ->getQuery()
-            ->getSingleScalarResult();
+            ->getSingleResult();
 
         return [
-            'count' => $totalCount,
-            'pending' => $pendingCount,
-            'in_progress' => $inProgressCount,
-            'closed' => $closedCount
+            'count' => (int) $result['count'],
+            'pending' => (int) $result['pending'],
+            'in_progress' => (int) $result['in_progress'],
+            'closed' => (int) $result['closed']
         ];
     }
 
     public function getIssueCountsByOrganization(Organization $organization): array
     {
-        $qb = $this->createQueryBuilder('i');
-        
-        $totalCount = (int) $qb
-            ->select('COUNT(i.id)')
+        $result = $this->createQueryBuilder('i')
+            ->select(
+                'COUNT(i.id) as count',
+                "SUM(CASE WHEN i.status = 'pending' THEN 1 ELSE 0 END) as pending",
+                "SUM(CASE WHEN i.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress",
+                "SUM(CASE WHEN i.status = 'closed' THEN 1 ELSE 0 END) as closed"
+            )
             ->where('i.organization = :organization')
             ->setParameter('organization', $organization)
             ->getQuery()
-            ->getSingleScalarResult();
-
-        $pendingCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.organization = :organization')
-            ->andWhere('i.status = :status')
-            ->setParameter('organization', $organization)
-            ->setParameter('status', 'pending')
-            ->getQuery()
-            ->getSingleScalarResult();
-
-        $inProgressCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.organization = :organization')
-            ->andWhere('i.status = :status')
-            ->setParameter('organization', $organization)
-            ->setParameter('status', 'in_progress')
-            ->getQuery()
-            ->getSingleScalarResult();
-
-        $closedCount = (int) $this->createQueryBuilder('i')
-            ->select('COUNT(i.id)')
-            ->where('i.organization = :organization')
-            ->andWhere('i.status = :status')
-            ->setParameter('organization', $organization)
-            ->setParameter('status', 'closed')
-            ->getQuery()
-            ->getSingleScalarResult();
+            ->getSingleResult();
 
         return [
-            'count' => $totalCount,
-            'pending' => $pendingCount,
-            'in_progress' => $inProgressCount,
-            'closed' => $closedCount
+            'count' => (int) $result['count'],
+            'pending' => (int) $result['pending'],
+            'in_progress' => (int) $result['in_progress'],
+            'closed' => (int) $result['closed']
         ];
     }
 

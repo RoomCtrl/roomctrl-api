@@ -10,6 +10,7 @@ use App\Feature\User\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
+use DateTimeImmutable;
 
 /**
  * @extends ServiceEntityRepository<Room>
@@ -39,6 +40,11 @@ class RoomRepository extends ServiceEntityRepository
         }
     }
 
+    public function flush(): void
+    {
+        $this->getEntityManager()->flush();
+    }
+
     public function findById(Uuid $id): ?Room
     {
         return $this->find($id);
@@ -63,8 +69,23 @@ class RoomRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return Room[]
+     */
+    public function findByOrganizationAndStatus(Organization $organization, string $status): array
+    {
+        return $this->createQueryBuilder('r')
+            ->join('r.roomStatus', 'rs')
+            ->where('r.organization = :organization')
+            ->andWhere('rs.status = :status')
+            ->setParameter('organization', $organization)
+            ->setParameter('status', $status)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Get user's favorite rooms
-     * 
+     *
      * @return Room[]
      */
     public function findFavoritesByUser(User $user): array
@@ -79,8 +100,8 @@ class RoomRepository extends ServiceEntityRepository
 
     public function getMostUsedRooms(Organization $organization, int $limit = 5): array
     {
-        $oneWeekAgo = new \DateTimeImmutable('-1 week');
-        $oneMonthAgo = new \DateTimeImmutable('-1 month');
+        $oneWeekAgo = new DateTimeImmutable('-1 week');
+        $oneMonthAgo = new DateTimeImmutable('-1 month');
 
         return $this->createQueryBuilder('r')
             ->select(
@@ -104,8 +125,8 @@ class RoomRepository extends ServiceEntityRepository
 
     public function getLeastUsedRooms(Organization $organization, int $limit = 5): array
     {
-        $oneWeekAgo = new \DateTimeImmutable('-1 week');
-        $oneMonthAgo = new \DateTimeImmutable('-1 month');
+        $oneWeekAgo = new DateTimeImmutable('-1 week');
+        $oneMonthAgo = new DateTimeImmutable('-1 month');
 
         return $this->createQueryBuilder('r')
             ->select(

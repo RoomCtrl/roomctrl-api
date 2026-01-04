@@ -1,68 +1,63 @@
 services:
-  roomctrl-php:
-    container_name: roomctrl-php
-    restart: unless-stopped
+  php:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+      dockerfile: Dockerfile.dev
+    container_name: roomctrl_api_dev
     volumes:
       - .:/var/www/html
-      - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
-      - roomctrl-uploads:/var/www/html/public/uploads/rooms
+      - ./var/cache:/var/www/html/var/cache
+      - ./var/log:/var/www/html/var/log
     environment:
-      APP_ENV: ${APP_ENV:-dev}
-      APP_DEBUG: ${APP_DEBUG:-1}
+      - APP_ENV=dev
+      - APP_DEBUG=1
+      - DATABASE_URL=${DATABASE_URL:-postgresql://roomctrl:roomctrl@postgres:5432/roomctrl_db}
+      - MAILER_DSN=${MAILER_DSN:-smtp://mailhog:1025}
     depends_on:
-      - roomctrl-postgres
-      - roomctrl-mailhog
+      - postgres
+      - mailhog
     networks:
-      - roomctrl-network
+      - roomctrl_network
 
-  roomctrl-nginx:
-    container_name: roomctrl-nginx
-    restart: unless-stopped
+  nginx:
     image: nginx:alpine
+    container_name: roomctrl_nginx_dev
     ports:
       - "8080:80"
     volumes:
       - .:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/dev.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - roomctrl-php
+      - php
     networks:
-      - roomctrl-network
+      - roomctrl_network
 
-  roomctrl-postgres:
-    container_name: roomctrl-postgres
-    restart: unless-stopped
-    image: postgres:17-alpine
+  postgres:
+    image: postgres:18-alpine
+    container_name: roomctrl_postgres_dev
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-roomctrl_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-roomctrl_db}
       POSTGRES_USER: ${POSTGRES_USER:-roomctrl}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roomctrl123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-roomctrl}
     ports:
       - "5432:5432"
     volumes:
-      - roomctrl-postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - roomctrl-network
+      - roomctrl_network
 
-  roomctrl-mailhog:
-    container_name: roomctrl-mailhog
-    restart: unless-stopped
+  mailhog:
     image: mailhog/mailhog:latest
+    container_name: roomctrl_mailhog_dev
     ports:
       - "1025:1025"
       - "8025:8025"
     networks:
-      - roomctrl-network
-
-networks:
-  roomctrl-network:
-    driver: bridge
+      - roomctrl_network
 
 volumes:
-  roomctrl-postgres-data:
-    driver: local
-  roomctrl-uploads:
-    driver: local
+  postgres_data:
+
+networks:
+  roomctrl_network:
+    driver: bridge

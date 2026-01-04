@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Feature\Booking\DTO;
 
-class BookingTotalStatsResponseDTO
+readonly class BookingTotalStatsResponseDTO
 {
     public function __construct(
-        public readonly int $total,
-        public readonly int $thisMonth,
-        public readonly int $thisWeek,
-        public readonly int $today
+        public int $total,
+        public int $thisMonth,
+        public int $thisWeek,
+        public int $today
     ) {
     }
 

@@ -11,7 +11,6 @@ use DateTimeImmutable;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity(repositoryClass: BookingRepository::class)]
@@ -25,27 +24,21 @@ class Booking
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank(message: 'Title cannot be blank.')]
     private string $title;
 
     #[ORM\Column(type: 'datetime_immutable')]
-    #[Assert\NotNull]
     private DateTimeImmutable $startedAt;
 
     #[ORM\Column(type: 'datetime_immutable')]
-    #[Assert\NotNull]
     private DateTimeImmutable $endedAt;
 
     #[ORM\Column(type: 'integer')]
-    #[Assert\NotNull]
-    #[Assert\Positive]
     private int $participantsCount;
 
     #[ORM\Column(type: 'boolean')]
     private bool $isPrivate = false;
 
     #[ORM\Column(type: 'string', length: 20)]
-    #[Assert\Choice(choices: ['active', 'cancelled', 'completed'], message: 'Invalid status.')]
     private string $status = 'active';
 
     #[ORM\ManyToOne(targetEntity: Room::class)]

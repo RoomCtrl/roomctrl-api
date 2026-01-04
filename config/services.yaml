@@ -19,6 +19,7 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Feature/*/Entity/'
+            - '../src/Feature/*/DataFixtures/'
             - '../src/Kernel.php'
 
     # add more service definitions when explicit configuration is needed
@@ -29,7 +30,50 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.request, priority: 30 }
 
-    # User service with mail configuration
+    # Exception listener for API responses
+    App\Common\EventListener\ExceptionListener:
+        tags:
+            - { name: kernel.event_listener, event: kernel.exception, priority: 10 }
+
+    # Concrete services with custom arguments
     App\Feature\User\Service\UserService:
         arguments:
             $mailFromAddress: '%env(MAIL_FROM_ADDRESS)%'
+
+    App\Feature\Mail\Service\MailService:
+        arguments:
+            $fromAddress: '%env(MAIL_FROM_ADDRESS)%'
+
+    App\Feature\Room\Service\FileUploadService:
+        arguments:
+            $uploadDirectory: '%kernel.project_dir%/public/uploads/rooms'
+
+    App\Feature\Download\Service\DownloadService:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    # Service interfaces binding
+    App\Feature\Auth\Service\AuthServiceInterface:
+        alias: App\Feature\Auth\Service\AuthService
+
+    App\Feature\Booking\Service\BookingServiceInterface:
+        alias: App\Feature\Booking\Service\BookingService
+
+    App\Feature\Download\Service\DownloadServiceInterface:
+        alias: App\Feature\Download\Service\DownloadService
+
+    App\Feature\Issue\Service\IssueServiceInterface:
+        alias: App\Feature\Issue\Service\IssueService
+
+    App\Feature\Mail\Service\MailServiceInterface:
+        alias: App\Feature\Mail\Service\MailService
+
+    App\Feature\Organization\Service\OrganizationServiceInterface:
+        alias: App\Feature\Organization\Service\OrganizationService
+
+    App\Feature\Room\Service\RoomServiceInterface:
+        alias: App\Feature\Room\Service\RoomService
+
+    App\Feature\User\Service\UserServiceInterface:
+        alias: App\Feature\User\Service\UserService
+

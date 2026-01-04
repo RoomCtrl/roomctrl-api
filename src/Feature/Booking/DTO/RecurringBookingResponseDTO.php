@@ -9,7 +9,8 @@ class RecurringBookingResponseDTO
     public function __construct(
         public readonly int $createdCount,
         public readonly array $bookingIds
-    ) {}
+    ) {
+    }
 
     public function toArray(): array
     {

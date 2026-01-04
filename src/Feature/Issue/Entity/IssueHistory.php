@@ -8,7 +8,6 @@ use App\Feature\User\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
 #[ORM\Table(name: "issue_history")]
@@ -22,21 +21,16 @@ class IssueHistory
 
     #[ORM\ManyToOne(targetEntity: RoomIssue::class, inversedBy: 'history')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'Issue cannot be null.')]
     private ?RoomIssue $issue = null;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull(message: 'User cannot be null.')]
     private ?User $user = null;
 
     #[ORM\Column(type: 'string', length: 50)]
-    #[Assert\NotBlank(message: 'Action cannot be blank.')]
-    #[Assert\Choice(choices: ['created', 'status_changed', 'priority_changed', 'note_added', 'closed'], message: 'Invalid action.')]
     private string $action;
 
     #[ORM\Column(type: 'text')]
-    #[Assert\NotBlank(message: 'Description cannot be blank.')]
     private string $description;
 
     #[ORM\Column(type: 'datetime_immutable')]

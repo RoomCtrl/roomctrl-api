@@ -1,40 +1,45 @@
-###> Docker ###
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+.docker
+docker-compose*.yml
+Dockerfile*
 .dockerignore
-Dockerfile
-docker-compose.yml
-###< Docker ###
 
-###> Symfony ###
+# Documentation
+README.md
+docs/
+*.md
+
+# Development
 .env.local
-.env.local.php
 .env.*.local
-/config/secrets/prod/prod.decrypt.private.php
-/public/bundles/
-/var/
-/vendor/
-###< Symfony ###
+var/
+vendor/
+tests/
+phpunit.xml.dist
+phpcs.xml
 
-###> IDEs ###
+# Cache and logs
+var/cache/*
+var/log/*
+var/sessions/*
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
-###< IDEs ###
 
-###> OS ###
+# OS
 .DS_Store
 Thumbs.db
-###< OS ###
 
-###> Git ###
-.git/
-.gitignore
-.gitattributes
-###< Git ###
-
-###> Other ###
-/node_modules/
-npm-debug.log
-yarn-error.log
-###< Other ###
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml

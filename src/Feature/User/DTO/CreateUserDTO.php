@@ -68,4 +68,3 @@ class CreateUserDTO
         return $dto;
     }
 }
-

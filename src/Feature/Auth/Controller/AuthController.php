@@ -6,7 +6,7 @@ namespace App\Feature\Auth\Controller;
 
 use App\Common\Utility\ValidationErrorFormatter;
 use App\Feature\Auth\DTO\RegisterRequestDTO;
-use App\Feature\Auth\Service\AuthService;
+use App\Feature\Auth\Service\AuthServiceInterface;
 use App\Feature\User\Entity\User;
 use Exception;
 use InvalidArgumentException;
@@ -17,7 +17,8 @@ use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[OA\Tag(name: 'Authentication')]
@@ -129,7 +130,7 @@ class AuthController extends AbstractController
             )
         ]
     )]
-    public function me(Request $request, AuthService $authService): JsonResponse
+    public function me(Request $request, AuthServiceInterface $authService): JsonResponse
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -257,12 +258,11 @@ class AuthController extends AbstractController
         ]
     )]
     public function register(
-        Request             $request,
-        ValidatorInterface  $validator,
-        AuthService         $authService,
-        LoggerInterface     $logger
-    ): JsonResponse
-    {
+        Request $request,
+        ValidatorInterface $validator,
+        AuthServiceInterface $authService,
+        LoggerInterface $logger
+    ): JsonResponse {
         $data = $this->decodeJsonRequest($request);
         if ($data instanceof JsonResponse) {
             return $data;
@@ -279,10 +279,8 @@ class AuthController extends AbstractController
             $user = $authService->register($registerDTO);
 
             return $this->createRegistrationSuccessResponse($user);
-
         } catch (InvalidArgumentException $e) {
             return $this->createConflictResponse($e->getMessage());
-
         } catch (Exception $e) {
             $logger->error('Registration error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->createServerErrorResponse();
@@ -295,9 +293,9 @@ class AuthController extends AbstractController
 
         if (!is_array($data)) {
             return $this->json([
-                'code' => 400,
+                'code' => Response::HTTP_BAD_REQUEST,
                 'message' => 'Invalid JSON'
-            ], 400);
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         return $data;
@@ -310,7 +308,7 @@ class AuthController extends AbstractController
         if (count($violations) > 0) {
             return $this->json(
                 ValidationErrorFormatter::format($violations),
-                400
+                Response::HTTP_BAD_REQUEST
             );
         }
 
@@ -320,26 +318,26 @@ class AuthController extends AbstractController
     private function createRegistrationSuccessResponse(mixed $user): JsonResponse
     {
         return $this->json([
-            'code' => 201,
+            'code' => Response::HTTP_CREATED,
             'message' => 'User registered successfully',
             'userId' => $user->getId()->toRfc4122(),
             'organizationId' => $user->getOrganization()->getId()->toRfc4122()
-        ], 201);
+        ], Response::HTTP_CREATED);
     }
 
     private function createConflictResponse(string $message): JsonResponse
     {
         return $this->json([
-            'code' => 409,
+            'code' => Response::HTTP_CONFLICT,
             'message' => $message
-        ], 409);
+        ], Response::HTTP_CONFLICT);
     }
 
     private function createServerErrorResponse(): JsonResponse
     {
         return $this->json([
-            'code' => 500,
+            'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
             'message' => 'An error occurred during registration'
-        ], 500);
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 }

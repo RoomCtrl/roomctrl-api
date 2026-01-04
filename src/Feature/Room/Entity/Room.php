@@ -8,7 +8,6 @@ use App\Feature\Room\Repository\RoomRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
-use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
 use App\Feature\Organization\Entity\Organization;
 use App\Feature\User\Entity\User;
@@ -26,26 +25,18 @@ class Room
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 100)]
-    #[Assert\NotBlank(message: 'Room name cannot be blank.')]
     private string $roomName;
 
     #[ORM\Column(type: 'integer')]
-    #[Assert\NotNull]
-    #[Assert\Positive]
-    #[Assert\Range(min: 1, max: 200, notInRangeMessage: 'Capacity must be between {{ min }} and {{ max }}.')]
     private int $capacity;
 
     #[ORM\Column(type: 'float')]
-    #[Assert\NotNull]
-    #[Assert\Positive]
     private float $size;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Assert\NotBlank]
     private string $location;
 
     #[ORM\Column(type: 'string', length: 50)]
-    #[Assert\NotBlank]
     private string $access;
 
     #[ORM\Column(type: 'text', nullable: true)]
@@ -62,7 +53,6 @@ class Room
 
     #[ORM\ManyToOne(targetEntity: Organization::class)]
     #[ORM\JoinColumn(nullable: false)]
-    #[Assert\NotNull]
     private ?Organization $organization = null;
 
     #[ORM\OneToMany(mappedBy: 'room', targetEntity: Equipment::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
@@ -226,11 +216,11 @@ class Room
     public function setRoomStatus(?RoomStatus $roomStatus): self
     {
         $this->roomStatus = $roomStatus;
-        
+
         if ($roomStatus !== null && $roomStatus->getRoom() !== $this) {
             $roomStatus->setRoom($this);
         }
-        
+
         return $this;
     }
 

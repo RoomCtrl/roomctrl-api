@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Feature\Room\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity]
@@ -19,16 +18,12 @@ class Equipment
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 100)]
-    #[Assert\NotBlank(message: 'Equipment name cannot be blank.')]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 50)]
-    #[Assert\Choice(choices: ['video', 'audio', 'computer', 'accessory', 'furniture'], message: 'Invalid category.')]
     private string $category;
 
     #[ORM\Column(type: 'integer')]
-    #[Assert\NotNull]
-    #[Assert\Positive]
     private int $quantity = 1;
 
     #[ORM\ManyToOne(targetEntity: Room::class, inversedBy: 'equipment')]

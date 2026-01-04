@@ -14,18 +14,17 @@ use App\Feature\Issue\Entity\IssueNote;
 use App\Feature\Issue\Entity\RoomIssue;
 use App\Feature\Issue\Repository\RoomIssueRepository;
 use App\Feature\Organization\Entity\Organization;
-use App\Feature\Room\Entity\Room;
+use App\Feature\Room\Repository\RoomRepository;
 use App\Feature\User\Entity\User;
 use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Component\Uid\Uuid;
 
-readonly class IssueService
+readonly class IssueService implements IssueServiceInterface
 {
     public function __construct(
         private RoomIssueRepository $issueRepository,
-        private EntityManagerInterface $entityManager
+        private RoomRepository $roomRepository
     ) {
     }
 
@@ -54,6 +53,11 @@ readonly class IssueService
         return IssueResponseDTO::fromEntity($issue, $withDetails);
     }
 
+    public function getIssueEntityById(Uuid $uuid): ?RoomIssue
+    {
+        return $this->issueRepository->findByUuid($uuid);
+    }
+
     public function getMyIssues(User $user, ?string $status = null): array
     {
         $issues = $this->issueRepository->findByReporter($user->getId()->toRfc4122(), $status);
@@ -67,7 +71,7 @@ readonly class IssueService
     public function createIssue(CreateIssueDTO $dto, User $reporter): RoomIssue
     {
         $roomUuid = Uuid::fromString($dto->roomId);
-        $room = $this->entityManager->getRepository(Room::class)->find($roomUuid);
+        $room = $this->roomRepository->findById($roomUuid);
 
         if (!$room) {
             throw new InvalidArgumentException('Room not found');

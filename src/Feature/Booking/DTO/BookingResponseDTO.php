@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace App\Feature\Booking\DTO;
 
 use App\Feature\Booking\Entity\Booking;
-use App\Feature\Booking\DTO\RoomDTO;
-use App\Feature\Booking\DTO\UserDTO;
-use App\Feature\Booking\DTO\ParticipantDTO;
 
 class BookingResponseDTO
 {

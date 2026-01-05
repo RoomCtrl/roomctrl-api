@@ -17,8 +17,8 @@ class BookingResponseDTO
     public array $participants;
     public bool $isPrivate;
     public string $status;
-    public RoomDTO $room;
-    public UserDTO $user;
+    public ?RoomDTO $room;
+    public ?UserDTO $user;
     public string $createdAt;
 
     public function __construct(Booking $booking)
@@ -33,19 +33,27 @@ class BookingResponseDTO
         $this->createdAt = $booking->getCreatedAt()->format('c');
 
         $room = $booking->getRoom();
-        $this->room = new RoomDTO(
-            $room->getId()->toRfc4122(),
-            $room->getRoomName(),
-            $room->getLocation()
-        );
+        if ($room !== null) {
+            $this->room = new RoomDTO(
+                $room->getId()->toRfc4122(),
+                $room->getRoomName(),
+                $room->getLocation()
+            );
+        } else {
+            $this->room = null;
+        }
 
         $user = $booking->getUser();
-        $this->user = new UserDTO(
-            $user->getId()->toRfc4122(),
-            $user->getUsername(),
-            $user->getFirstName(),
-            $user->getLastName()
-        );
+        if ($user !== null) {
+            $this->user = new UserDTO(
+                $user->getId()->toRfc4122(),
+                $user->getUsername(),
+                $user->getFirstName(),
+                $user->getLastName()
+            );
+        } else {
+            $this->user = null;
+        }
 
         $this->participants = [];
         foreach ($booking->getParticipants() as $participant) {
@@ -70,8 +78,8 @@ class BookingResponseDTO
             'participants' => array_map(fn($p) => $p->toArray(), $this->participants),
             'isPrivate' => $this->isPrivate,
             'status' => $this->status,
-            'room' => $this->room->toArray(),
-            'user' => $this->user->toArray(),
+            'room' => $this->room?->toArray(),
+            'user' => $this->user?->toArray(),
             'createdAt' => $this->createdAt
         ];
     }

@@ -19,7 +19,10 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 RUN echo "memory_limit = 512M" >> /usr/local/etc/php/conf.d/docker-php-memlimit.ini && \
     echo "upload_max_filesize = 50M" >> /usr/local/etc/php/conf.d/docker-php-upload.ini && \
-    echo "post_max_size = 50M" >> /usr/local/etc/php/conf.d/docker-php-upload.ini
+    echo "post_max_size = 50M" >> /usr/local/etc/php/conf.d/docker-php-upload.ini && \
+    echo "opcache.enable=0" >> /usr/local/etc/php/conf.d/docker-php-opcache.ini && \
+    echo "opcache.validate_timestamps=1" >> /usr/local/etc/php/conf.d/docker-php-opcache.ini && \
+    echo "opcache.revalidate_freq=0" >> /usr/local/etc/php/conf.d/docker-php-opcache.ini
 
 WORKDIR /var/www/html
 

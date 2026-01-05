@@ -61,24 +61,26 @@ class BookingController extends AbstractController
                             new OA\Property(property: 'status', description: 'Current booking status', type: 'string', enum: ['active', 'cancelled', 'completed']),
                             new OA\Property(
                                 property: 'room',
-                                description: 'Room information',
+                                description: 'Room information (null if room was deleted)',
                                 properties: [
                                     new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                     new OA\Property(property: 'roomName', type: 'string'),
                                     new OA\Property(property: 'location', type: 'string')
                                 ],
-                                type: 'object'
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(
                                 property: 'user',
-                                description: 'User who created the booking',
+                                description: 'User who created the booking (null if user was deleted)',
                                 properties: [
                                     new OA\Property(property: 'id', type: 'string', format: 'uuid'),
                                     new OA\Property(property: 'username', type: 'string'),
                                     new OA\Property(property: 'firstName', type: 'string'),
                                     new OA\Property(property: 'lastName', type: 'string')
                                 ],
-                                type: 'object'
+                                type: 'object',
+                                nullable: true
                             ),
                             new OA\Property(property: 'createdAt', description: 'Timestamp when booking was created', type: 'string', format: 'date-time')
                         ],
@@ -294,6 +296,16 @@ class BookingController extends AbstractController
                 )
             ),
             new OA\Response(
+                response: 403,
+                description: 'Forbidden - User cannot book rooms from other organizations',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 403),
+                        new OA\Property(property: 'message', type: 'string', example: 'You can only book rooms from your organization')
+                    ]
+                )
+            ),
+            new OA\Response(
                 response: 409,
                 description: 'Conflict - time slot already booked',
                 content: new OA\JsonContent(
@@ -346,6 +358,13 @@ class BookingController extends AbstractController
             if (str_starts_with($e->getMessage(), '{')) {
                 $errorData = json_decode($e->getMessage(), true);
                 return $this->json($errorData, Response::HTTP_CONFLICT);
+            }
+
+            if ($e->getMessage() === 'You can only book rooms from your organization') {
+                return $this->json([
+                    'code' => Response::HTTP_FORBIDDEN,
+                    'message' => $e->getMessage()
+                ], Response::HTTP_FORBIDDEN);
             }
 
             return $this->json([
@@ -484,6 +503,9 @@ class BookingController extends AbstractController
 
             return $this->json($result->toArray(), Response::HTTP_CREATED);
         } catch (InvalidArgumentException $e) {
+            if ($e->getMessage() === 'You can only book rooms from your organization') {
+                return $this->json(['code' => Response::HTTP_FORBIDDEN, 'message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            }
             return $this->json(['code' => Response::HTTP_BAD_REQUEST, 'message' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (DateMalformedStringException $e) {
             return $this->json(['code' => Response::HTTP_BAD_REQUEST, 'message' => $e->getMessage()]);
@@ -714,11 +736,21 @@ class BookingController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Forbidden - not authorized to update this booking',
+                description: 'Forbidden - not authorized to update this booking or room from different organization',
                 content: new OA\JsonContent(
-                    properties: [
-                        new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Not authorized to update this booking')
+                    oneOf: [
+                        new OA\Schema(
+                            properties: [
+                                new OA\Property(property: 'code', type: 'integer', example: 403),
+                                new OA\Property(property: 'message', type: 'string', example: 'Not authorized to update this booking')
+                            ]
+                        ),
+                        new OA\Schema(
+                            properties: [
+                                new OA\Property(property: 'code', type: 'integer', example: 403),
+                                new OA\Property(property: 'message', type: 'string', example: 'You can only book rooms from your organization')
+                            ]
+                        )
                     ]
                 )
             ),
@@ -808,6 +840,13 @@ class BookingController extends AbstractController
             if (str_starts_with($e->getMessage(), '{')) {
                 $errorData = json_decode($e->getMessage(), true);
                 return $this->json($errorData, Response::HTTP_CONFLICT);
+            }
+
+            if ($e->getMessage() === 'You can only book rooms from your organization') {
+                return $this->json([
+                    'code' => Response::HTTP_FORBIDDEN,
+                    'message' => $e->getMessage()
+                ], Response::HTTP_FORBIDDEN);
             }
 
             return $this->json([

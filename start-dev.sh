@@ -14,6 +14,9 @@ docker compose up -d
 echo "Waiting for containers to be ready..."
 sleep 10
 
+echo "Installing Composer dependencies..."
+docker compose exec php composer install --no-interaction --prefer-dist
+
 if [ ! -f "config/jwt/private.pem" ] || [ ! -f "config/jwt/public.pem" ]; then
     echo "JWT keys not found. Generating..."
     docker compose exec php php bin/console lexik:jwt:generate-keypair

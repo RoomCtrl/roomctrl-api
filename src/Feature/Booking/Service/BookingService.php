@@ -163,6 +163,10 @@ readonly class BookingService implements BookingServiceInterface
     {
         $room = $this->findRoomByUuid($dto->roomId);
 
+        if ($user->getOrganization() !== $room->getOrganization()) {
+            throw new InvalidArgumentException('You can only book rooms from your organization');
+        }
+
         $startedAt = $this->parseDateTime($dto->startedAt);
         $endedAt = $this->parseDateTime($dto->endedAt);
 
@@ -183,6 +187,12 @@ readonly class BookingService implements BookingServiceInterface
     public function handleUpdateBooking(Booking $booking, UpdateBookingDTO $dto): Booking
     {
         $room = $dto->roomId !== null ? $this->findRoomByUuid($dto->roomId) : null;
+
+        if ($room !== null && $booking->getUser() !== null) {
+            if ($booking->getUser()->getOrganization() !== $room->getOrganization()) {
+                throw new InvalidArgumentException('You can only book rooms from your organization');
+            }
+        }
 
         $startedAt = $dto->startedAt !== null ? $this->parseDateTime($dto->startedAt) : null;
         $endedAt = $dto->endedAt !== null ? $this->parseDateTime($dto->endedAt) : null;
@@ -424,6 +434,10 @@ readonly class BookingService implements BookingServiceInterface
         array $daysOfWeek,
         int $weeksAhead = 12
     ): RecurringBookingResponseDTO {
+        if ($user->getOrganization() !== $room->getOrganization()) {
+            throw new InvalidArgumentException('You can only book rooms from your organization');
+        }
+
         $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
         $createdBookings = [];
         $now = new DateTimeImmutable();

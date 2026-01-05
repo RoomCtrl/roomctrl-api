@@ -73,7 +73,7 @@ interface BookingServiceInterface
      */
     public function getOccupancyRateByDayOfWeek(Organization $organization): array;
 
-    public function getBookingsList(?User $user = null): array;
+    public function getBookingsList(?User $user = null, bool $myBookings = false): array;
 
     public function getBookingById(string $id): Booking;
 

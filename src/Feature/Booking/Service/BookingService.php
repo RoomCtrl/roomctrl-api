@@ -291,15 +291,15 @@ readonly class BookingService implements BookingServiceInterface
         return $result;
     }
 
-    public function getBookingsList(?User $user = null): array
+    public function getBookingsList(?User $user = null, bool $myBookings = false): array
     {
         if ($user === null) {
             $bookings = $this->bookingRepository->findByCriteria([], ['startedAt' => 'ASC']);
+        } elseif ($myBookings) {
+            $bookings = $this->bookingRepository->findBy(['user' => $user], ['startedAt' => 'ASC']);
         } else {
-            // Filtruj bookings według organizacji użytkownika
             $bookings = $this->bookingRepository->findByOrganization($user->getOrganization());
 
-            // Sortuj po startedAt
             usort($bookings, function (Booking $a, Booking $b) {
                 return $a->getStartedAt() <=> $b->getStartedAt();
             });

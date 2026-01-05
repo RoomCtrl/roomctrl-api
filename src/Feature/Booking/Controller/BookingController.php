@@ -39,10 +39,19 @@ class BookingController extends AbstractController
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/bookings',
-        description: 'Returns a list of all bookings. Bookings include details about the room, user, and participants.',
+        description: 'Returns a list of bookings. By default returns all bookings from user\'s organization. Use ?myBookings=true to filter only bookings created by the authenticated user.',
         summary: 'Retrieve list of bookings',
         security: [['Bearer' => []]],
         tags: ['Bookings'],
+        parameters: [
+            new OA\Parameter(
+                name: 'myBookings',
+                description: 'Filter to show only bookings created by the authenticated user',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'boolean', example: true)
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
@@ -110,12 +119,14 @@ class BookingController extends AbstractController
             )
         ]
     )]
-    public function list(): Response
+    public function list(Request $request): Response
     {
         /** @var User $user */
         $user = $this->getUser();
 
-        $data = $this->bookingService->getBookingsList($user);
+        $myBookings = $request->query->getBoolean('myBookings', false);
+
+        $data = $this->bookingService->getBookingsList($user, $myBookings);
 
         return $this->json($data, Response::HTTP_OK);
     }

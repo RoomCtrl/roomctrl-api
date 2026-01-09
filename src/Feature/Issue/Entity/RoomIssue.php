@@ -24,7 +24,7 @@ class RoomIssue
     #[ORM\CustomIdGenerator(class: 'doctrine.uuid_generator')]
     private ?Uuid $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Room::class)]
+    #[ORM\ManyToOne(targetEntity: Room::class, inversedBy: 'issues')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Room $room = null;
 

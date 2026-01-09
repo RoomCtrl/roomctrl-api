@@ -35,6 +35,9 @@ class UpdateRoomRequest
     #[Assert\Choice(choices: ['available', 'out_of_use'])]
     public ?string $status = null;
 
+    #[Assert\Type('array')]
+    public ?array $equipment = null;
+
     public static function fromArray(array $data): self
     {
         $request = new self();
@@ -47,6 +50,7 @@ class UpdateRoomRequest
         $request->lighting = $data['lighting'] ?? null;
         $request->airConditioning = $data['airConditioning'] ?? null;
         $request->status = $data['status'] ?? null;
+        $request->equipment = $data['equipment'] ?? null;
 
         return $request;
     }

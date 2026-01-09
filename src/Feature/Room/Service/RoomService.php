@@ -192,6 +192,22 @@ class RoomService implements RoomServiceInterface
             $room->setAirConditioning($dto->airConditioning);
         }
 
+        if ($dto->equipment !== null) {
+            // Remove existing equipment
+            foreach ($room->getEquipment() as $existingEquipment) {
+                $room->removeEquipment($existingEquipment);
+            }
+
+            // Add new equipment
+            foreach ($dto->equipment as $equipData) {
+                $equipmentItem = new Equipment();
+                $equipmentItem->setName($equipData['name']);
+                $equipmentItem->setCategory($equipData['category']);
+                $equipmentItem->setQuantity($equipData['quantity'] ?? 1);
+                $room->addEquipment($equipmentItem);
+            }
+        }
+
         $this->roomRepository->flush();
     }
 

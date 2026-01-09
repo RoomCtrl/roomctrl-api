@@ -41,7 +41,7 @@ class Booking
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = 'active';
 
-    #[ORM\ManyToOne(targetEntity: Room::class)]
+    #[ORM\ManyToOne(targetEntity: Room::class, inversedBy: 'bookings')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Room $room = null;
 

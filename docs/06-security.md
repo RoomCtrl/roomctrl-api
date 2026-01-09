@@ -291,7 +291,7 @@ class UserService
 | `/api/register` | POST | PUBLIC_ACCESS | - |
 | `/api/me` | GET | IS_AUTHENTICATED_FULLY | - |
 | `/api/token_refresh` | GET | IS_AUTHENTICATED_FULLY | - |
-| `/api/users` | GET | ROLE_ADMIN | - |
+| `/api/users` | GET | IS_AUTHENTICATED_FULLY | - |
 | `/api/users` | POST | ROLE_ADMIN | - |
 | `/api/users/{id}` | GET | IS_AUTHENTICATED_FULLY | Własny profil lub ROLE_ADMIN |
 | `/api/users/{id}` | PATCH | ROLE_ADMIN | - |

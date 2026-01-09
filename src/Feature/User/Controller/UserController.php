@@ -45,7 +45,7 @@ class UserController extends AbstractController
     }
 
     #[Route('', name: 'users_list', methods: ['GET'])]
-    #[IsGranted('ROLE_ADMIN')]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(
         path: '/api/users',
         summary: 'Get all users',
@@ -98,16 +98,6 @@ class UserController extends AbstractController
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 401),
                         new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found')
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 403,
-                description: 'Forbidden - Requires ROLE_ADMIN',
-                content: new OA\JsonContent(
-                    properties: [
-                        new OA\Property(property: 'code', type: 'integer', example: 403),
-                        new OA\Property(property: 'message', type: 'string', example: 'Access denied. You do not have sufficient permissions to access this resource.')
                     ]
                 )
             )

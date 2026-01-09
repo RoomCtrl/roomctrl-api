@@ -25,6 +25,7 @@ use DateMalformedStringException;
 use DateTimeImmutable;
 use Exception;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Uid\Uuid;
 
@@ -34,7 +35,8 @@ readonly class BookingService implements BookingServiceInterface
         private BookingRepository $bookingRepository,
         private RoomRepository $roomRepository,
         private UserRepository $userRepository,
-        private MailServiceInterface $mailService
+        private MailServiceInterface $mailService,
+        private LoggerInterface $logger
     ) {
     }
 
@@ -72,10 +74,17 @@ readonly class BookingService implements BookingServiceInterface
 
         $this->bookingRepository->save($booking, true);
 
-        $this->mailService->sendBookingConfirmation($user, $booking, $room, $booking->getParticipants()->toArray());
+        try {
+            $this->mailService->sendBookingConfirmation($user, $booking, $room, $booking->getParticipants()->toArray());
 
-        foreach ($booking->getParticipants() as $participant) {
-            $this->mailService->sendParticipantInvitation($participant, $booking, $room, $user);
+            foreach ($booking->getParticipants() as $participant) {
+                $this->mailService->sendParticipantInvitation($participant, $booking, $room, $user);
+            }
+        } catch (Exception $e) {
+            $this->logger->error('Failed to send booking emails', [
+                'bookingId' => $booking->getId(),
+                'error' => $e->getMessage()
+            ]);
         }
 
         return $booking;
@@ -483,5 +492,31 @@ readonly class BookingService implements BookingServiceInterface
             createdCount: count($createdBookings),
             bookingIds: $createdBookings
         );
+    }
+
+    public function updateExpiredBookingStatuses(): int
+    {
+        $now = new DateTimeImmutable();
+
+        $expiredBookings = $this->bookingRepository->createQueryBuilder('b')
+            ->where('b.status = :status')
+            ->andWhere('b.endedAt < :now')
+            ->setParameter('status', 'active')
+            ->setParameter('now', $now)
+            ->getQuery()
+            ->getResult();
+
+        $count = 0;
+        foreach ($expiredBookings as $booking) {
+            $booking->setStatus('completed');
+            $this->bookingRepository->save($booking, false);
+            $count++;
+        }
+
+        if ($count > 0) {
+            $this->bookingRepository->flush();
+        }
+
+        return $count;
     }
 }

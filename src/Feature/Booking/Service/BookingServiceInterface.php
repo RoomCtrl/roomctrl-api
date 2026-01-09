@@ -88,4 +88,11 @@ interface BookingServiceInterface
         array $daysOfWeek,
         int $weeksAhead = 12
     ): RecurringBookingResponseDTO;
+
+    /**
+     * Update status of expired bookings from active to completed
+     * 
+     * @return int Number of bookings updated
+     */
+    public function updateExpiredBookingStatuses(): int;
 }

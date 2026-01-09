@@ -915,6 +915,19 @@ class RoomController extends AbstractController
                         ],
                         type: 'object',
                         nullable: true
+                    ),
+                    new OA\Property(
+                        property: 'equipment',
+                        type: 'array',
+                        items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'name', type: 'string'),
+                                new OA\Property(property: 'category', type: 'string', enum: ['video', 'audio', 'computer', 'accessory', 'furniture']),
+                                new OA\Property(property: 'quantity', type: 'integer')
+                            ],
+                            type: 'object'
+                        ),
+                        nullable: true
                     )
                 ],
                 type: 'object'
@@ -1009,6 +1022,19 @@ class RoomController extends AbstractController
                             new OA\Property(property: 'max', type: 'number')
                         ],
                         type: 'object',
+                        nullable: true
+                    ),
+                    new OA\Property(
+                        property: 'equipment',
+                        type: 'array',
+                        items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'name', type: 'string'),
+                                new OA\Property(property: 'category', type: 'string', enum: ['video', 'audio', 'computer', 'accessory', 'furniture']),
+                                new OA\Property(property: 'quantity', type: 'integer')
+                            ],
+                            type: 'object'
+                        ),
                         nullable: true
                     )
                 ],

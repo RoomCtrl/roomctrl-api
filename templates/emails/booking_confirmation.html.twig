@@ -122,11 +122,11 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Start Time:</span>
-                    <span class="detail-value">{{ booking.startedAt|date('d/m/Y H:i') }}</span>
+                    <span class="detail-value">{{ booking.startedAt|date('d/m/Y H:i', 'Europe/Warsaw') }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">End Time:</span>
-                    <span class="detail-value">{{ booking.endedAt|date('d/m/Y H:i') }}</span>
+                    <span class="detail-value">{{ booking.endedAt|date('d/m/Y H:i', 'Europe/Warsaw') }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Expected Participants:</span>

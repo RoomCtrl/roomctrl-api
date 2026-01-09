@@ -15,3 +15,27 @@ Pełna dokumentacja techniczna znajduje się w folderze [docs/](docs/README.md):
 - [Moduły](docs/07-features.md)
 - [Rozwój & Testowanie](docs/08-development.md)
 - [Docker](docs/09-docker.md)
+- [Automatyczna aktualizacja statusów rezerwacji](docs/10-booking-status-update.md)
+- [Testowanie aktualizacji statusów](docs/11-booking-status-update-testing.md)
+
+## ⚙️ Commands
+
+### Aktualizacja statusów rezerwacji
+
+System automatycznie aktualizuje statusy rezerwacji na dwa sposoby:
+
+1. **Event Listener (Real-time)** - Automatycznie przy każdym GET do `/api/bookings*`
+2. **Symfony Command (Background)** - Regularnie przez cron
+
+```bash
+php bin/console app:booking:update-status
+```
+
+Zmienia status rezerwacji z `active` na `completed` po zakończeniu czasu rezerwacji.
+
+**Konfiguracja cron (opcjonalna, rekomendowana dla produkcji):**
+```cron
+*/5 * * * * cd /sciezka/do/projektu && php bin/console app:booking:update-status
+```
+
+**Docker cron** jest już skonfigurowany w `docker-compose.yml` i `docker-compose.prod.yml`.

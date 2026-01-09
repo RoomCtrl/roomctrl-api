@@ -34,8 +34,8 @@ class IssueResponseDTO
         $dto->description = $issue->getDescription();
         $dto->status = $issue->getStatus();
         $dto->priority = $issue->getPriority();
-        $dto->reportedAt = $issue->getReportedAt()->format('Y-m-d H:i:s');
-        $dto->closedAt = $issue->getClosedAt()?->format('Y-m-d H:i:s');
+        $dto->reportedAt = $issue->getReportedAt()->format('c');
+        $dto->closedAt = $issue->getClosedAt()?->format('c');
 
         if ($withDetails) {
             foreach ($issue->getNotes() as $note) {
@@ -44,7 +44,7 @@ class IssueResponseDTO
                     'content' => $note->getContent(),
                     'authorId' => $note->getAuthor()->getId()->toRfc4122(),
                     'authorName' => $note->getAuthor()->getFirstName() . ' ' . $note->getAuthor()->getLastName(),
-                    'createdAt' => $note->getCreatedAt()->format('Y-m-d H:i:s')
+                    'createdAt' => $note->getCreatedAt()->format('c')
                 ];
             }
 
@@ -55,7 +55,7 @@ class IssueResponseDTO
                     'description' => $history->getDescription(),
                     'userId' => $history->getUser()->getId()->toRfc4122(),
                     'userName' => $history->getUser()->getFirstName() . ' ' . $history->getUser()->getLastName(),
-                    'createdAt' => $history->getCreatedAt()->format('Y-m-d H:i:s')
+                    'createdAt' => $history->getCreatedAt()->format('c')
                 ];
             }
         }

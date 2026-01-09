@@ -9,6 +9,7 @@ services:
       - ./var/cache:/var/www/html/var/cache
       - ./var/log:/var/www/html/var/log
     environment:
+      - TZ=UTC
       - APP_ENV=dev
       - APP_DEBUG=1
       - DATABASE_URL=${DATABASE_URL:-postgresql://roomctrl:roomctrl@postgres:5432/roomctrl_db}
@@ -52,6 +53,30 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+    networks:
+      - roomctrl_network
+
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: roomctrl_cron_dev
+    volumes:
+      - .:/var/www/html
+      - ./var/cache:/var/www/html/var/cache
+      - ./var/log:/var/www/html/var/log
+    environment:
+      - TZ=UTC
+      - APP_ENV=dev
+      - APP_DEBUG=1
+      - DATABASE_URL=${DATABASE_URL:-postgresql://roomctrl:roomctrl@postgres:5432/roomctrl_db}
+    depends_on:
+      - postgres
+    command: >
+      sh -c "
+        echo '*/5 * * * * cd /var/www/html && php bin/console app:booking:update-status >> /var/log/cron.log 2>&1' > /etc/crontabs/root &&
+        crond -f -l 2
+      "
     networks:
       - roomctrl_network
 

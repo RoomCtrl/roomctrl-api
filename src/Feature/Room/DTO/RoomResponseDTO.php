@@ -26,7 +26,7 @@ class RoomResponseDTO
     /** @var array<int, array>|null */
     public ?array $nextBookings = null;
 
-    private function __construct(
+    protected function __construct(
         string $roomId,
         string $roomName,
         string $status,

@@ -10,6 +10,9 @@
 6. [Uprawnienia i bezpieczeństwo](06-security.md)
 7. [Moduły funkcjonalne](07-features.md)
 8. [Testowanie i rozwój](08-development.md)
+9. [Docker](09-docker.md)
+10. [Automatyczna aktualizacja statusów rezerwacji](10-booking-status-update.md)
+11. [Testowanie aktualizacji statusów](11-booking-status-update-testing.md)
 
 ## Wprowadzenie
 

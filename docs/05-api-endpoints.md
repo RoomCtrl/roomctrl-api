@@ -157,7 +157,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 ### GET /api/users
 **Lista wszystkich użytkowników**
 
-**Auth:** ROLE_ADMIN  
+**Auth:** JWT (IS_AUTHENTICATED_FULLY)  
 **Query params:**
 - `withDetails` (boolean, optional) - Dołącz szczegóły organizacji
 
@@ -621,7 +621,19 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 {
   "roomName": "Sala 301 - Zaktualizowana",
   "capacity": 25,
-  "description": "Nowy opis"
+  "description": "Nowy opis",
+  "equipment": [
+    {
+      "name": "Projektor 4K",
+      "category": "video",
+      "quantity": 1
+    },
+    {
+      "name": "Krzesła biurowe",
+      "category": "furniture",
+      "quantity": 25
+    }
+  ]
 }
 ```
 

@@ -108,7 +108,7 @@ User/
 ### Kluczowe funkcje
 
 #### UserController
-- `GET /api/users` - Lista użytkowników (ROLE_ADMIN)
+- `GET /api/users` - Lista użytkowników (IS_AUTHENTICATED_FULLY)
 - `GET /api/users/{id}` - Szczegóły użytkownika
 - `POST /api/users` - Utworzenie użytkownika (ROLE_ADMIN)
 - `PATCH /api/users/{id}` - Aktualizacja użytkownika (ROLE_ADMIN)
@@ -471,6 +471,24 @@ public function checkAvailability(
     return count($conflicts) === 0;
 }
 ```
+
+### Automatyczna aktualizacja statusów
+
+System zawiera mechanizm automatycznej aktualizacji statusów rezerwacji z `active` na `completed` po zakończeniu czasu rezerwacji.
+
+#### Command
+```bash
+php bin/console app:booking:update-status
+```
+
+Znajduje wszystkie rezerwacje ze statusem `active`, których `endedAt < now` i zmienia ich status na `completed`.
+
+**Konfiguracja cron (co 5 minut):**
+```cron
+*/5 * * * * cd /sciezka/do/projektu && php bin/console app:booking:update-status
+```
+
+**Więcej informacji:** Zobacz [dokumentację aktualizacji statusów](10-booking-status-update.md)
 
 ---
 

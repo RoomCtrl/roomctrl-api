@@ -6,6 +6,7 @@ services:
     container_name: roomctrl_api_prod
     restart: unless-stopped
     environment:
+      - TZ=UTC
       - APP_ENV=prod
       - APP_DEBUG=0
       - DATABASE_URL=${DATABASE_URL}
@@ -47,6 +48,30 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - roomctrl_network
+
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: roomctrl_cron_prod
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+      - APP_ENV=prod
+      - APP_DEBUG=0
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./var/log:/var/www/html/var/log
+      - var_cache:/var/www/html/var
+    depends_on:
+      - postgres
+    command: >
+      sh -c "
+        echo '*/5 * * * * cd /var/www/html && php bin/console app:booking:update-status >> /var/log/cron.log 2>&1' > /etc/crontabs/root &&
+        crond -f -l 2
+      "
     networks:
       - roomctrl_network
 

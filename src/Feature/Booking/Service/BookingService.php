@@ -474,8 +474,8 @@ readonly class BookingService implements BookingServiceInterface
                     $booking->setUser($user);
                     $booking->setStartedAt($startedAt);
                     $booking->setEndedAt($endedAt);
-                    $booking->setParticipantsCount(0);
-                    $booking->setIsPrivate(true);
+                    $booking->setParticipantsCount(1);
+                    $booking->setIsPrivate(false);
                     $booking->setStatus('active');
 
                     $this->bookingRepository->save($booking, false);

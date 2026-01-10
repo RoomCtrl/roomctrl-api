@@ -66,4 +66,16 @@ class UserRepository extends ServiceEntityRepository
             $this->getEntityManager()->flush();
         }
     }
+
+    public function countAdminsInOrganization(Uuid $organizationId): int
+    {
+        return (int) $this->createQueryBuilder('u')
+            ->select('COUNT(u.id)')
+            ->where('u.organization = :organizationId')
+            ->andWhere('JSON_CONTAINS(u.roles, :adminRole) = 1')
+            ->setParameter('organizationId', $organizationId, 'uuid')
+            ->setParameter('adminRole', '"ROLE_ADMIN"')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

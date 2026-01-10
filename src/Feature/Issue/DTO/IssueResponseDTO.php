@@ -39,22 +39,24 @@ class IssueResponseDTO
 
         if ($withDetails) {
             foreach ($issue->getNotes() as $note) {
+                $author = $note->getAuthor();
                 $dto->notes[] = [
                     'id' => $note->getId()->toRfc4122(),
                     'content' => $note->getContent(),
-                    'authorId' => $note->getAuthor()->getId()->toRfc4122(),
-                    'authorName' => $note->getAuthor()->getFirstName() . ' ' . $note->getAuthor()->getLastName(),
+                    'authorId' => $author?->getId()->toRfc4122(),
+                    'authorName' => $author ? $author->getFirstName() . ' ' . $author->getLastName() : 'Deleted User',
                     'createdAt' => $note->getCreatedAt()->format('c')
                 ];
             }
 
             foreach ($issue->getHistory() as $history) {
+                $user = $history->getUser();
                 $dto->history[] = [
                     'id' => $history->getId()->toRfc4122(),
                     'action' => $history->getAction(),
                     'description' => $history->getDescription(),
-                    'userId' => $history->getUser()->getId()->toRfc4122(),
-                    'userName' => $history->getUser()->getFirstName() . ' ' . $history->getUser()->getLastName(),
+                    'userId' => $user?->getId()->toRfc4122(),
+                    'userName' => $user ? $user->getFirstName() . ' ' . $user->getLastName() : 'Deleted User',
                     'createdAt' => $history->getCreatedAt()->format('c')
                 ];
             }

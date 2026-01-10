@@ -24,7 +24,7 @@ class IssueNote
     private ?RoomIssue $issue = null;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $author = null;
 
     #[ORM\Column(type: 'text')]

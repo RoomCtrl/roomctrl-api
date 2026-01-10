@@ -1014,7 +1014,8 @@ class BookingController extends AbstractController
         }
     }
 
-    #[Route('/{id}/leave', name: 'bookings_leave', methods: ['DELETE'])]    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    #[Route('/{id}/leave', name: 'bookings_leave', methods: ['DELETE'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Delete(
         path: '/api/bookings/{id}/leave',
         description: 'Allows a participant to remove themselves from a booking without cancelling the entire reservation. The booking owner cannot leave their own booking.',

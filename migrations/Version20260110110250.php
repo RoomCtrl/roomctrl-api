@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20260109164243 extends AbstractMigration
+final class Version20260110110250 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -28,10 +28,10 @@ final class Version20260109164243 extends AbstractMigration
         $this->addSql('CREATE INDEX IDX_93F6915DA76ED395 ON booking_participants (user_id)');
         $this->addSql('CREATE TABLE equipment (id UUID NOT NULL, name VARCHAR(100) NOT NULL, category VARCHAR(50) NOT NULL, quantity INT NOT NULL, room_id UUID NOT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_D338D58354177093 ON equipment (room_id)');
-        $this->addSql('CREATE TABLE issue_history (id UUID NOT NULL, action VARCHAR(50) NOT NULL, description TEXT NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, issue_id UUID NOT NULL, user_id UUID NOT NULL, PRIMARY KEY (id))');
+        $this->addSql('CREATE TABLE issue_history (id UUID NOT NULL, action VARCHAR(50) NOT NULL, description TEXT NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, issue_id UUID NOT NULL, user_id UUID DEFAULT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_824235AA5E7AA58C ON issue_history (issue_id)');
         $this->addSql('CREATE INDEX IDX_824235AAA76ED395 ON issue_history (user_id)');
-        $this->addSql('CREATE TABLE issue_notes (id UUID NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, issue_id UUID NOT NULL, author_id UUID NOT NULL, PRIMARY KEY (id))');
+        $this->addSql('CREATE TABLE issue_notes (id UUID NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, issue_id UUID NOT NULL, author_id UUID DEFAULT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE INDEX IDX_9391CFDF5E7AA58C ON issue_notes (issue_id)');
         $this->addSql('CREATE INDEX IDX_9391CFDFF675F31B ON issue_notes (author_id)');
         $this->addSql('CREATE TABLE organizations (id UUID NOT NULL, regon VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, PRIMARY KEY (id))');
@@ -59,9 +59,9 @@ final class Version20260109164243 extends AbstractMigration
         $this->addSql('ALTER TABLE booking_participants ADD CONSTRAINT FK_93F6915DA76ED395 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE');
         $this->addSql('ALTER TABLE equipment ADD CONSTRAINT FK_D338D58354177093 FOREIGN KEY (room_id) REFERENCES rooms (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE issue_history ADD CONSTRAINT FK_824235AA5E7AA58C FOREIGN KEY (issue_id) REFERENCES room_issues (id) NOT DEFERRABLE');
-        $this->addSql('ALTER TABLE issue_history ADD CONSTRAINT FK_824235AAA76ED395 FOREIGN KEY (user_id) REFERENCES users (id) NOT DEFERRABLE');
+        $this->addSql('ALTER TABLE issue_history ADD CONSTRAINT FK_824235AAA76ED395 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL NOT DEFERRABLE');
         $this->addSql('ALTER TABLE issue_notes ADD CONSTRAINT FK_9391CFDF5E7AA58C FOREIGN KEY (issue_id) REFERENCES room_issues (id) NOT DEFERRABLE');
-        $this->addSql('ALTER TABLE issue_notes ADD CONSTRAINT FK_9391CFDFF675F31B FOREIGN KEY (author_id) REFERENCES users (id) NOT DEFERRABLE');
+        $this->addSql('ALTER TABLE issue_notes ADD CONSTRAINT FK_9391CFDFF675F31B FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE SET NULL NOT DEFERRABLE');
         $this->addSql('ALTER TABLE room_issues ADD CONSTRAINT FK_9B33B94254177093 FOREIGN KEY (room_id) REFERENCES rooms (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE room_issues ADD CONSTRAINT FK_9B33B942E1CFE6F5 FOREIGN KEY (reporter_id) REFERENCES users (id) NOT DEFERRABLE');
         $this->addSql('ALTER TABLE room_issues ADD CONSTRAINT FK_9B33B94232C8A3DE FOREIGN KEY (organization_id) REFERENCES organizations (id) NOT DEFERRABLE');

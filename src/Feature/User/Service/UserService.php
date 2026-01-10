@@ -180,18 +180,6 @@ readonly class UserService implements UserServiceInterface
 
     public function deleteUser(User $user): void
     {
-        if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {
-            $adminCount = $this->userRepository->countAdminsInOrganization(
-                $user->getOrganization()->getId()
-            );
-
-            if ($adminCount <= 1) {
-                throw new InvalidArgumentException(
-                    'Cannot delete the last admin of the organization. Please assign another admin before deleting this account.'
-                );
-            }
-        }
-
         $activeBookings = $this->bookingRepository->findBy(['user' => $user, 'status' => 'active']);
 
         foreach ($activeBookings as $booking) {

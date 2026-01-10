@@ -981,6 +981,14 @@ class UserController extends AbstractController
             ], Response::HTTP_FORBIDDEN);
         }
 
+        if ($user->getId()->toRfc4122() === $currentUser->getId()->toRfc4122() 
+            && in_array('ROLE_ADMIN', $currentUser->getRoles(), true)) {
+            return $this->json([
+                'code' => Response::HTTP_FORBIDDEN,
+                'message' => 'Admins cannot delete their own account'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         try {
             $this->userService->deleteUser($user);
 

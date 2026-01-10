@@ -168,6 +168,20 @@ readonly class BookingService implements BookingServiceInterface
             || in_array('ROLE_ADMIN', $user->getRoles());
     }
 
+    public function leaveBooking(Booking $booking, User $user): void
+    {
+        if (!$booking->getParticipants()->contains($user)) {
+            throw new InvalidArgumentException('You are not a participant of this booking');
+        }
+
+        if ($booking->getUser()?->getId() === $user->getId()) {
+            throw new InvalidArgumentException('Booking owner cannot leave the booking. Please cancel the booking instead.');
+        }
+
+        $booking->removeParticipant($user);
+        $this->bookingRepository->flush();
+    }
+
     public function handleCreateBooking(CreateBookingDTO $dto, User $user): Booking
     {
         $room = $this->findRoomByUuid($dto->roomId);
@@ -305,7 +319,7 @@ readonly class BookingService implements BookingServiceInterface
         if ($user === null) {
             $bookings = $this->bookingRepository->findByCriteria([], ['startedAt' => 'ASC']);
         } elseif ($myBookings) {
-            $bookings = $this->bookingRepository->findBy(['user' => $user], ['startedAt' => 'ASC']);
+            $bookings = $this->bookingRepository->findByUserOrParticipant($user);
         } else {
             $bookings = $this->bookingRepository->findByOrganization($user->getOrganization());
 

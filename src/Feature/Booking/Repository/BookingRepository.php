@@ -61,19 +61,33 @@ class BookingRepository extends ServiceEntityRepository
             ->setParameter('room', $room)
             ->setParameter('status', 'active')
             ->setParameter('startedAt', $startedAt)
-            ->setParameter('endedAt', $endedAt);
+            ->setParameter('endedAt', $endedAt)
+            ->setMaxResults(1);
 
         if ($excludeBookingId) {
             $qb->andWhere('b.id != :excludeId')
                 ->setParameter('excludeId', $excludeBookingId, 'uuid');
         }
 
-        return $qb->getQuery()->getOneOrNullResult();
+        $results = $qb->getQuery()->getResult();
+        return !empty($results) ? $results[0] : null;
     }
 
     public function flush(): void
     {
         $this->getEntityManager()->flush();
+    }
+
+    public function findByUserOrParticipant(User $user): array
+    {
+        return $this->createQueryBuilder('b')
+            ->leftJoin('b.participants', 'p')
+            ->where('b.user = :user')
+            ->orWhere('p = :user')
+            ->setParameter('user', $user)
+            ->orderBy('b.startedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 
     public function getBookingCountsByUser(User $user): array

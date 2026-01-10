@@ -56,6 +56,8 @@ interface BookingServiceInterface
 
     public function canUserEditBooking(Booking $booking, User $user): bool;
 
+    public function leaveBooking(Booking $booking, User $user): void;
+
     public function handleCreateBooking(CreateBookingDTO $dto, User $user): Booking;
 
     public function handleUpdateBooking(Booking $booking, UpdateBookingDTO $dto): Booking;

@@ -1014,6 +1014,96 @@ class BookingController extends AbstractController
         }
     }
 
+    #[Route('/{id}/leave', name: 'bookings_leave', methods: ['DELETE'])]    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    #[OA\Delete(
+        path: '/api/bookings/{id}/leave',
+        description: 'Allows a participant to remove themselves from a booking without cancelling the entire reservation. The booking owner cannot leave their own booking.',
+        summary: 'Leave a booking as a participant',
+        security: [['Bearer' => []]],
+        tags: ['Bookings'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'Booking ID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', format: 'uuid')
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Successfully left the booking',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 200),
+                        new OA\Property(property: 'message', type: 'string', example: 'You have successfully left the booking')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Bad request - not a participant or owner trying to leave',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 400),
+                        new OA\Property(property: 'message', type: 'string', example: 'You are not a participant of this booking')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthorized',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 401),
+                        new OA\Property(property: 'message', type: 'string', example: 'User not authenticated')
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Booking not found',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'code', type: 'integer', example: 404),
+                        new OA\Property(property: 'message', type: 'string', example: 'Booking not found')
+                    ]
+                )
+            )
+        ]
+    )]
+    public function leaveBooking(string $id): Response
+    {
+        try {
+            $booking = $this->bookingService->getBookingById($id);
+
+            $user = $this->getUser();
+            if (!$user instanceof User) {
+                return $this->json([
+                    'code' => Response::HTTP_UNAUTHORIZED,
+                    'message' => 'User not authenticated'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $this->bookingService->leaveBooking($booking, $user);
+
+            return $this->json([
+                'code' => Response::HTTP_OK,
+                'message' => 'You have successfully left the booking'
+            ], Response::HTTP_OK);
+        } catch (InvalidArgumentException $e) {
+            $statusCode = ($e->getMessage() === 'Booking not found') 
+                ? Response::HTTP_NOT_FOUND 
+                : Response::HTTP_BAD_REQUEST;
+
+            return $this->json([
+                'code' => $statusCode,
+                'message' => $e->getMessage()
+            ], $statusCode);
+        }
+    }
+
     #[Route('/count', name: 'bookings_count', methods: ['GET'])]
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[OA\Get(

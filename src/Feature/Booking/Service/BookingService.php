@@ -184,69 +184,95 @@ readonly class BookingService implements BookingServiceInterface
 
     public function handleCreateBooking(CreateBookingDTO $dto, User $user): Booking
     {
-        $room = $this->findRoomByUuid($dto->roomId);
+        $connection = $this->bookingRepository->getEntityManager()->getConnection();
+        
+        try {
+            $connection->beginTransaction();
 
-        if ($user->getOrganization() !== $room->getOrganization()) {
-            throw new InvalidArgumentException('You can only book rooms from your organization');
+            $room = $this->findRoomByUuid($dto->roomId);
+
+            if ($user->getOrganization() !== $room->getOrganization()) {
+                throw new InvalidArgumentException('You can only book rooms from your organization');
+            }
+
+            $startedAt = $this->parseDateTime($dto->startedAt);
+            $endedAt = $this->parseDateTime($dto->endedAt);
+
+            $this->checkForConflicts($room, $startedAt, $endedAt);
+
+            $booking = $this->createBooking(
+                $dto->title,
+                $room,
+                $user,
+                $startedAt,
+                $endedAt,
+                $dto->participantsCount,
+                $dto->isPrivate,
+                $dto->participantIds
+            );
+
+            $connection->commit();
+
+            return $booking;
+        } catch (Exception $e) {
+            $connection->rollback();
+            throw $e;
         }
-
-        $startedAt = $this->parseDateTime($dto->startedAt);
-        $endedAt = $this->parseDateTime($dto->endedAt);
-
-        $this->checkForConflicts($room, $startedAt, $endedAt);
-
-        return $this->createBooking(
-            $dto->title,
-            $room,
-            $user,
-            $startedAt,
-            $endedAt,
-            $dto->participantsCount,
-            $dto->isPrivate,
-            $dto->participantIds
-        );
     }
 
     public function handleUpdateBooking(Booking $booking, UpdateBookingDTO $dto): Booking
     {
-        $room = $dto->roomId !== null ? $this->findRoomByUuid($dto->roomId) : null;
+        $connection = $this->bookingRepository->getEntityManager()->getConnection();
 
-        if ($room !== null && $booking->getUser() !== null) {
-            if ($booking->getUser()->getOrganization() !== $room->getOrganization()) {
-                throw new InvalidArgumentException('You can only book rooms from your organization');
+        try {
+            $connection->beginTransaction();
+
+            $room = $dto->roomId !== null ? $this->findRoomByUuid($dto->roomId) : null;
+
+            if ($room !== null && $booking->getUser() !== null) {
+                if ($booking->getUser()->getOrganization() !== $room->getOrganization()) {
+                    throw new InvalidArgumentException('You can only book rooms from your organization');
+                }
             }
+
+            $startedAt = $dto->startedAt !== null ? $this->parseDateTime($dto->startedAt) : null;
+            $endedAt = $dto->endedAt !== null ? $this->parseDateTime($dto->endedAt) : null;
+
+            $finalStartedAt = $startedAt ?? $booking->getStartedAt();
+            $finalEndedAt = $endedAt ?? $booking->getEndedAt();
+
+            $now = new DateTimeImmutable();
+            if ($finalStartedAt < $now) {
+                throw new InvalidArgumentException('Cannot update booking to past date');
+            }
+
+            if ($finalStartedAt >= $finalEndedAt) {
+                throw new InvalidArgumentException('End time must be after start time');
+            }
+
+            $finalRoom = $room ?? $booking->getRoom();
+            if ($room !== null || $startedAt !== null || $endedAt !== null) {
+                $this->checkForConflicts($finalRoom, $finalStartedAt, $finalEndedAt, $booking->getId());
+            }
+
+            $updatedBooking = $this->updateBooking(
+                $booking,
+                $dto->title,
+                $room,
+                $startedAt,
+                $endedAt,
+                $dto->participantsCount,
+                $dto->isPrivate,
+                $dto->participantIds
+            );
+
+            $connection->commit();
+
+            return $updatedBooking;
+        } catch (Exception $e) {
+            $connection->rollback();
+            throw $e;
         }
-
-        $startedAt = $dto->startedAt !== null ? $this->parseDateTime($dto->startedAt) : null;
-        $endedAt = $dto->endedAt !== null ? $this->parseDateTime($dto->endedAt) : null;
-
-        $finalStartedAt = $startedAt ?? $booking->getStartedAt();
-        $finalEndedAt = $endedAt ?? $booking->getEndedAt();
-
-        $now = new DateTimeImmutable();
-        if ($finalStartedAt < $now) {
-            throw new InvalidArgumentException('Cannot update booking to past date');
-        }
-
-        if ($finalStartedAt >= $finalEndedAt) {
-            throw new InvalidArgumentException('End time must be after start time');
-        }
-
-        $finalRoom = $room ?? $booking->getRoom();
-        if ($room !== null || $startedAt !== null || $endedAt !== null) {
-            $this->checkForConflicts($finalRoom, $finalStartedAt, $finalEndedAt, $booking->getId());
-        }
-
-        return $this->updateBooking(
-            $booking,
-            $dto->title,
-            $room,
-            $startedAt,
-            $endedAt,
-            $dto->participantsCount,
-            $dto->isPrivate,
-            $dto->participantIds
-        );
     }
 
     public function handleCancelBooking(Booking $booking): CancelBookingResponseDTO
@@ -457,55 +483,66 @@ readonly class BookingService implements BookingServiceInterface
         array $daysOfWeek,
         int $weeksAhead = 12
     ): RecurringBookingResponseDTO {
-        if ($user->getOrganization() !== $room->getOrganization()) {
-            throw new InvalidArgumentException('You can only book rooms from your organization');
-        }
+        $connection = $this->bookingRepository->getEntityManager()->getConnection();
 
-        $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
-        $createdBookings = [];
-        $now = new DateTimeImmutable();
+        try {
+            $connection->beginTransaction();
 
-        $endDate = $now->modify("+$weeksAhead weeks");
-
-        $currentDate = $now->modify('+1 day')->setTime(0, 0);
-
-        while ($currentDate <= $endDate) {
-            $dayOfWeek = (int)$currentDate->format('N');
-
-            if (in_array($dayOfWeek, $daysOfWeek)) {
-                [$startHour, $startMinute] = explode(':', $startTime);
-                [$endHour, $endMinute] = explode(':', $endTime);
-
-                $startedAt = $currentDate->setTime((int)$startHour, (int)$startMinute);
-                $endedAt = $currentDate->setTime((int)$endHour, (int)$endMinute);
-
-                $hasConflict = $this->findConflictingBooking($room, $startedAt, $endedAt);
-
-                if (!$hasConflict) {
-                    $booking = new Booking();
-                    $booking->setTitle($title);
-                    $booking->setRoom($room);
-                    $booking->setUser($user);
-                    $booking->setStartedAt($startedAt);
-                    $booking->setEndedAt($endedAt);
-                    $booking->setParticipantsCount(1);
-                    $booking->setIsPrivate(false);
-                    $booking->setStatus('active');
-
-                    $this->bookingRepository->save($booking, false);
-                    $createdBookings[] = $booking->getId()->toRfc4122();
-                }
+            if ($user->getOrganization() !== $room->getOrganization()) {
+                throw new InvalidArgumentException('You can only book rooms from your organization');
             }
 
-            $currentDate = $currentDate->modify('+1 day');
+            $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
+            $createdBookings = [];
+            $now = new DateTimeImmutable();
+
+            $endDate = $now->modify("+$weeksAhead weeks");
+
+            $currentDate = $now->modify('+1 day')->setTime(0, 0);
+
+            while ($currentDate <= $endDate) {
+                $dayOfWeek = (int)$currentDate->format('N');
+
+                if (in_array($dayOfWeek, $daysOfWeek)) {
+                    [$startHour, $startMinute] = explode(':', $startTime);
+                    [$endHour, $endMinute] = explode(':', $endTime);
+
+                    $startedAt = $currentDate->setTime((int)$startHour, (int)$startMinute);
+                    $endedAt = $currentDate->setTime((int)$endHour, (int)$endMinute);
+
+                    $hasConflict = $this->findConflictingBooking($room, $startedAt, $endedAt);
+
+                    if (!$hasConflict) {
+                        $booking = new Booking();
+                        $booking->setTitle($title);
+                        $booking->setRoom($room);
+                        $booking->setUser($user);
+                        $booking->setStartedAt($startedAt);
+                        $booking->setEndedAt($endedAt);
+                        $booking->setParticipantsCount(1);
+                        $booking->setIsPrivate(false);
+                        $booking->setStatus('active');
+
+                        $this->bookingRepository->save($booking, false);
+                        $createdBookings[] = $booking->getId()->toRfc4122();
+                    }
+                }
+
+                $currentDate = $currentDate->modify('+1 day');
+            }
+
+            $this->bookingRepository->flush();
+
+            $connection->commit();
+
+            return new RecurringBookingResponseDTO(
+                createdCount: count($createdBookings),
+                bookingIds: $createdBookings
+            );
+        } catch (Exception $e) {
+            $connection->rollback();
+            throw $e;
         }
-
-        $this->bookingRepository->flush();
-
-        return new RecurringBookingResponseDTO(
-            createdCount: count($createdBookings),
-            bookingIds: $createdBookings
-        );
     }
 
     public function updateExpiredBookingStatuses(): int

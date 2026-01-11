@@ -219,9 +219,9 @@ Reprezentuje sale konferencyjne dostępne do rezerwacji.
 ### 4. RoomStatus (Status sali)
 
 **Lokalizacja:** `src/Feature/Room/Entity/RoomStatus.php`  
-**Tabela:** `room_status`
+**Tabela:** `room_statuses`
 
-Reprezentuje aktualny status dostępności sali.
+Reprezentuje aktualny status dostępności sali z informacją o ostatniej aktualizacji.
 
 #### Pola:
 
@@ -229,6 +229,7 @@ Reprezentuje aktualny status dostępności sali.
 |------|-----|------|----------|----------|
 | id | UUID | Identyfikator | Auto | Tak |
 | status | string(20) | Status | Tak | Nie |
+| updatedAt | datetime_immutable | Data ostatniej aktualizacji | Auto | Nie |
 | room | Room | Sala | Tak | Nie |
 
 #### Wartości status:
@@ -236,7 +237,10 @@ Reprezentuje aktualny status dostępności sali.
 - `out_of_use` - Niedostępna
 
 #### Relacje:
-- **OneToOne** → Room (inversedBy: roomStatus, nullable: false)
+- **OneToOne** → Room (inversedBy: roomStatus, nullable: false, cascade: persist/remove, orphanRemoval: true)
+
+#### Auto-update:
+Field `updatedAt` jest automatycznie aktualizowany każdorazowo gdy zmieni się status sali.
 
 ---
 

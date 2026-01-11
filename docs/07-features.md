@@ -226,8 +226,7 @@ public function createOrganization(CreateOrganizationDTO $dto): Organization
 - Wyposażenie sal
 - Statusy dostępności
 - Ulubione sale użytkowników
-- Upload zdjęć sal
-- Ostatnio przeglądane sale
+- Upload zdjęć sal (JPG, PNG, PDF)
 
 ### Struktura
 ```
@@ -255,7 +254,7 @@ Room/
 
 ### Kluczowe funkcje
 
-#### RoomController (1987 linii - największy kontroler)
+#### RoomController
 - `GET /api/rooms` - Lista sal z opcjonalnymi filtrami
 - `GET /api/rooms/{id}` - Szczegóły sali
 - `POST /api/rooms` - Utworzenie sali (ROLE_ADMIN)
@@ -267,7 +266,6 @@ Room/
 - `POST /api/rooms/{id}/favorite` - Dodaj do ulubionych
 - `DELETE /api/rooms/{id}/favorite` - Usuń z ulubionych
 - `GET /api/rooms/favorites` - Lista ulubionych sal
-- `GET /api/rooms/recent` - Ostatnio przeglądane
 
 #### RoomService
 ```php
@@ -307,21 +305,50 @@ public function toggleFavorite(Room $room, User $user): bool
 ```
 
 #### FileUploadService
+
+Obsługuje upload i usuwanie plików (zdjęcia sal).
+
+**Obsługiwane typy MIME:**
+- `image/jpeg`, `image/jpg` → `.jpg`
+- `image/png` → `.png`
+- `application/pdf` → `.pdf`
+
+**Metody:**
+
 ```php
-public function uploadRoomImage(UploadedFile $file, string $roomId): string
+public function isValidFileType(UploadedFile $file): bool
 {
-    $filename = $roomId . '_' . uniqid() . '.' . $file->guessExtension();
-    $file->move($this->uploadDirectory, $filename);
-    return 'uploads/rooms/' . $filename;
+    // Sprawdza czy plik jest dozwolonym typem
 }
 
-public function deleteRoomImage(string $imagePath): void
+public function uploadFiles(array $files, string $identifier): array
 {
-    $fullPath = $this->projectDir . '/public/' . $imagePath;
-    if (file_exists($fullPath)) {
-        unlink($fullPath);
-    }
+    // Wysyła pliki, zwraca tablicę względnych ścieżek:
+    // ['/uploads/rooms/roomId_timestamp_uniqid.jpg']
 }
+
+public function deleteFile(string $relativePath, string $projectDir): bool
+{
+    // Usuwa plik z filesystem'u
+    // $relativePath np. '/uploads/rooms/file.jpg'
+}
+```
+
+**Struktura folderów:**
+```
+public/
+├── uploads/
+│   └── rooms/          # Wszystkie zdjęcia sal
+│       ├── room-uuid_time_id.jpg
+│       ├── room-uuid_time_id.png
+│       └── ...
+├── android/            # Aplikacja Android (APK)
+└── ios/                # Aplikacja iOS (IPA)
+```
+
+**Konwencja nazewnictwa plików:**
+```
+{roomId}_{timestamp}_{uniqid}.{extension}
 ```
 
 ---
@@ -667,77 +694,93 @@ Szablony email: `templates/emails/`
 - `POST /api/contact_mail` - Formularz kontaktowy (PUBLIC)
 
 #### MailService
+
+Obsługuje wysyłkę emaili z walidacją i sanityzacją danych.
+
+**Metody publiczne:**
+
 ```php
-public function sendEmail(array $data): GenericSuccessResponseDTO
+public function validateMailFields(
+    array $data,
+    array $requiredFields,
+    string $emailField = 'email'
+): ?array
 {
-    $email = (new Email())
-        ->from($this->fromAddress)
-        ->to($data['to'])
-        ->subject($data['subject'])
-        ->html($data['content']);
-    
-    $this->mailer->send($email);
-    
-    return new GenericSuccessResponseDTO(
-        200,
-        'Email has been sent successfully'
-    );
+    // Sprawdza wymagane pola i format email
+    // Zwraca null jeśli OK, lub array z błędem
 }
 
-public function sendBookingConfirmation(Booking $booking): void
+public function sendEmail(array $data): MailSentResponseDTO
 {
-    $email = (new TemplatedEmail())
-        ->from($this->fromAddress)
-        ->to($booking->getUser()->getEmail())
-        ->subject('Booking Confirmation: ' . $booking->getTitle())
-        ->htmlTemplate('emails/booking_confirmation.html.twig')
-        ->context([
-            'booking' => $booking,
-            'room' => $booking->getRoom(),
-            'user' => $booking->getUser()
-        ]);
-    
-    $this->mailer->send($email);
+    // Wysyła email bez szablonu
+    // Wymaga: to, subject, content
 }
 
-public function sendParticipantInvitations(Booking $booking): void
+public function sendContactFormEmail(array $data): ContactFormSentResponseDTO
 {
-    foreach ($booking->getParticipants() as $participant) {
-        if (!$participant->isEmailNotificationsEnabled()) {
-            continue;
-        }
-        
-        $email = (new TemplatedEmail())
-            ->from($this->fromAddress)
-            ->to($participant->getEmail())
-            ->subject('Meeting Invitation: ' . $booking->getTitle())
-            ->htmlTemplate('emails/participant_invitation.html.twig')
-            ->context([
-                'booking' => $booking,
-                'participant' => $participant
-            ]);
-        
-        $this->mailer->send($email);
-    }
-}
-
-public function sendPasswordResetEmail(User $user, string $resetToken): void
-{
-    $resetUrl = $this->frontendUrl . '/reset-password?token=' . $resetToken;
-    
-    $email = (new TemplatedEmail())
-        ->from($this->fromAddress)
-        ->to($user->getEmail())
-        ->subject('Password Reset Request')
-        ->htmlTemplate('emails/password_reset.html.twig')
-        ->context([
-            'user' => $user,
-            'resetUrl' => $resetUrl
-        ]);
-    
-    $this->mailer->send($email);
+    // Wysyła email z formularza kontaktowego
+    // Wymaga: subject, content
+    // Wysyła na: roomctrlinfo@gmail.com
 }
 ```
+
+**Response DTOs:**
+
+```php
+class MailSentResponseDTO
+{
+    public int $code = 200;
+    public string $message = 'Email sent successfully';
+}
+
+class ContactFormSentResponseDTO
+{
+    public int $code = 200;
+    public string $message = 'Contact form submitted successfully';
+}
+
+class FileNotFoundResponseDTO
+{
+    public int $code = 404;
+    public string $message;
+    
+    public function __construct(string $message)
+    {
+        $this->message = $message;
+    }
+}
+```
+
+**Wewnętrzne funkcje:**
+
+```php
+private function sanitizeMailField(string $value): string
+{
+    // Sanityzuje dane email'a (strip_tags, trim, htmlspecialchars)
+}
+
+private function renderEmailTemplate(
+    string $content,
+    string $subject
+): string
+{
+    // Renderuje szablon Twig dla zawartości emaila
+}
+
+private function formatContactMessage(array $data): string
+{
+    // Formatuje wiadomość z formularza kontaktowego
+}
+```
+
+**Szablony email'i (Twig):**
+
+Wszystkie szablony znajdują się w `templates/emails/`:
+- `booking_confirmation.html.twig` - Potwierdzenie rezerwacji
+- `participant_invitation.html.twig` - Zaproszenie dla uczestnika
+- `password_reset.html.twig` - Link do resetowania hasła
+- `welcome_email.html.twig` - Email powitalny dla nowego użytkownika
+- `standard_email.html.twig` - Szablon standardowy
 
 ---
 
@@ -749,55 +792,66 @@ public function sendPasswordResetEmail(User $user, string $resetToken): void
 - Udostępnianie plików mobilnych (APK, IPA)
 - Download aplikacji Android
 - Download aplikacji iOS
+- Obsługa błędów (brak pliku)
 
 ### Struktura
 ```
 Download/
 ├── Controller/
 │   └── DownloadController.php
-└── Service/
-    ├── DownloadServiceInterface.php
-    └── DownloadService.php
+├── Service/
+│   ├── DownloadServiceInterface.php
+│   └── DownloadService.php
+└── DTO/
+    └── FileNotFoundResponseDTO.php
 ```
 
 ### Kluczowe funkcje
 
-#### DownloadController
-- `GET /api/download/android/{version}` - Pobierz APK (PUBLIC)
-- `GET /api/download/ios/{version}` - Pobierz IPA (PUBLIC)
+#### DownloadController (PUBLIC endpoints)
+- `GET /api/download/android` - Pobierz APK
+- `GET /api/download/ios` - Pobierz IPA
+
+**Odpowiedzi:**
+- **200 OK** - Zwraca plik binarny (BinaryFileResponse)
+- **404 Not Found** - JSON z informacją o błędzie (FileNotFoundResponseDTO)
 
 #### DownloadService
+
 ```php
-public function getAndroidFile(string $version): BinaryFileResponse
+public function getAndroidFile(): BinaryFileResponse
 {
-    $filename = $version === 'latest' 
-        ? 'roomctrl-latest.apk' 
-        : "roomctrl-{$version}.apk";
-    
-    $filePath = $this->androidPath . '/' . $filename;
-    
-    if (!file_exists($filePath)) {
-        throw new NotFoundHttpException('File not found');
-    }
-    
-    return new BinaryFileResponse($filePath);
+    // Wyszukuje pierwszy plik w katalogu public/android/
+    // Jeśli nie znaleziony -> InvalidArgumentException
+    // BinaryFileResponse zawiera nagłówki Cache-Control i Pragma
 }
 
-public function getIosFile(string $version): BinaryFileResponse
+public function getIosFile(): BinaryFileResponse
 {
-    $filename = $version === 'latest' 
-        ? 'roomctrl-latest.ipa' 
-        : "roomctrl-{$version}.ipa";
-    
-    $filePath = $this->iosPath . '/' . $filename;
-    
-    if (!file_exists($filePath)) {
-        throw new NotFoundHttpException('File not found');
-    }
-    
-    return new BinaryFileResponse($filePath);
+    // Wyszukuje pierwszy plik w katalogu public/ios/
+    // Jeśli nie znaleziony -> InvalidArgumentException
+    // BinaryFileResponse zawiera nagłówki Cache-Control i Pragma
+}
+
+private function findFileInDirectory(string $directory): string
+{
+    // Szuka dowolnego pliku w katalogu
+    // Zwraca ścieżkę do pierwszego znalezionego pliku
 }
 ```
+
+**Struktura katalogów dla aplikacji:**
+```
+public/
+├── android/
+│   ├── roomctrl-latest.apk     # Najnowsza wersja (lub inny format)
+│   └── roomctrl-1.0.0.apk      # Wersjonowane (opcjonalnie)
+└── ios/
+    ├── roomctrl-latest.ipa      # Najnowsza wersja (lub inny format)
+    └── roomctrl-1.0.0.ipa       # Wersjonowane (opcjonalnie)
+```
+
+**Notatka:** System pobiera **pierwszy plik** znaleziony w katalogu, niezależnie od wersji czy nazwy.
 
 ---
 

@@ -280,18 +280,19 @@ class RoomService implements RoomServiceInterface
     {
         $rawResults = $this->roomRepository->getMostUsedRooms($organization, $limit);
 
-        $totalBookings = array_sum(array_column($rawResults, 'bookingCount'));
+        $totalBookings = array_sum(array_map(fn($item) => (int)($item['bookingCount'] ?? 0), $rawResults));
 
         return array_map(function (array $item) use ($totalBookings): RoomUsageStatDTO {
-            $percentage = $totalBookings > 0 ? round(($item['bookingCount'] / $totalBookings) * 100, 2) : 0;
+            $bookingCount = (int)($item['bookingCount'] ?? 0);
+            $percentage = $totalBookings > 0 ? round(($bookingCount / $totalBookings) * 100, 2) : 0;
 
             return new RoomUsageStatDTO(
-                roomId: $item['id'],
+                roomId: $item['id']->toRfc4122(),
                 roomName: $item['roomName'],
-                count: (int) $item['bookingCount'],
+                count: $bookingCount,
                 percentage: $percentage,
-                weeklyBookings: (int) $item['weeklyBookings'],
-                monthlyBookings: (int) $item['monthlyBookings']
+                weeklyBookings: (int)($item['weeklyBookings'] ?? 0),
+                monthlyBookings: (int)($item['monthlyBookings'] ?? 0)
             );
         }, $rawResults);
     }
@@ -300,18 +301,19 @@ class RoomService implements RoomServiceInterface
     {
         $rawResults = $this->roomRepository->getLeastUsedRooms($organization, $limit);
 
-        $totalBookings = array_sum(array_column($rawResults, 'bookingCount'));
+        $totalBookings = array_sum(array_map(fn($item) => (int)($item['bookingCount'] ?? 0), $rawResults));
 
         return array_map(function (array $item) use ($totalBookings): RoomUsageStatDTO {
-            $percentage = $totalBookings > 0 ? round(($item['bookingCount'] / $totalBookings) * 100, 2) : 0;
+            $bookingCount = (int)($item['bookingCount'] ?? 0);
+            $percentage = $totalBookings > 0 ? round(($bookingCount / $totalBookings) * 100, 2) : 0;
 
             return new RoomUsageStatDTO(
-                roomId: $item['id'],
+                roomId: $item['id']->toRfc4122(),
                 roomName: $item['roomName'],
-                count: (int) $item['bookingCount'],
+                count: $bookingCount,
                 percentage: $percentage,
-                weeklyBookings: (int) $item['weeklyBookings'],
-                monthlyBookings: (int) $item['monthlyBookings']
+                weeklyBookings: (int)($item['weeklyBookings'] ?? 0),
+                monthlyBookings: (int)($item['monthlyBookings'] ?? 0)
             );
         }, $rawResults);
     }
@@ -328,7 +330,7 @@ class RoomService implements RoomServiceInterface
             };
 
             return new RoomIssueStatDTO(
-                roomId: $item['id'],
+                roomId: $item['id']->toRfc4122(),
                 roomName: $item['roomName'],
                 issueCount: (int) $item['issueCount'],
                 priority: $priority

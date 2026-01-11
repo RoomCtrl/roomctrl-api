@@ -193,7 +193,7 @@ class RoomController extends AbstractController
     }
 
     #[Route('/statistics/most_used', name: 'rooms_statistics_most_used', methods: ['GET'])]
-    #[IsGranted('ROLE_ADMIN')]
+    #[IsGranted('ROLE_USER')]
     #[OA\Get(
         path: '/api/rooms/statistics/most_used',
         description: 'Returns top 5 rooms with the highest number of bookings in the user\'s organization.',
@@ -229,7 +229,7 @@ class RoomController extends AbstractController
             ),
             new OA\Response(
                 response: 403,
-                description: 'Forbidden - Requires ROLE_ADMIN',
+                description: 'Forbidden - Requires ROLE_USER',
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'code', type: 'integer', example: 403),

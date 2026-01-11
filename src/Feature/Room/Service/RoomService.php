@@ -136,7 +136,7 @@ class RoomService implements RoomServiceInterface
         $room->setOrganization($organization);
 
         $roomStatus = new RoomStatus();
-        $roomStatus->setStatus('available');
+        $roomStatus->setStatus($dto->status ?? 'available');
         $roomStatus->setRoom($room);
         $room->setRoomStatus($roomStatus);
 
@@ -190,6 +190,12 @@ class RoomService implements RoomServiceInterface
         }
         if ($dto->airConditioning !== null) {
             $room->setAirConditioning($dto->airConditioning);
+        }
+        if ($dto->status !== null) {
+            $roomStatus = $room->getRoomStatus();
+            if ($roomStatus) {
+                $roomStatus->setStatus($dto->status);
+            }
         }
 
         if ($dto->equipment !== null) {

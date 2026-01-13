@@ -178,7 +178,7 @@ src/Common/
      │ 1. HTTP Request + JWT Token
      ▼
 ┌─────────────────────────────────┐
-│   Symfony Security Firewall    │
+│   Symfony Security Firewall     │
 │  • Weryfikacja JWT              │
 │  • Załadowanie User entity      │
 └────────┬────────────────────────┘

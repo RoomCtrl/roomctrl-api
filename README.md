@@ -2,7 +2,7 @@
 
 REST API do zarządzania rezerwacjami sal konferencyjnych zbudowany w Symfony 7.4 i PHP 8.4.
 
-## 📚 Dokumentacja
+## Dokumentacja
 
 Pełna dokumentacja techniczna znajduje się w folderze [docs/](docs/README.md):
 
@@ -16,9 +16,8 @@ Pełna dokumentacja techniczna znajduje się w folderze [docs/](docs/README.md):
 - [Rozwój & Testowanie](docs/08-development.md)
 - [Docker](docs/09-docker.md)
 - [Automatyczna aktualizacja statusów rezerwacji](docs/10-booking-status-update.md)
-- [Testowanie aktualizacji statusów](docs/11-booking-status-update-testing.md)
 
-## ⚙️ Commands
+## Commands
 
 ### Aktualizacja statusów rezerwacji
 

@@ -13,9 +13,9 @@ System dwutorowy zapewniający aktualne dane:
 Event Listener automatycznie aktualizuje statusy **przed każdym requestem GET do /api/bookings***.
 
 **Zalety:**
-- ✅ Użytkownik zawsze dostaje aktualne dane
-- ✅ Działa natychmiast bez czekania na cron
-- ✅ Nie wymaga dodatkowej konfiguracji serwera
+- Użytkownik zawsze dostaje aktualne dane
+- Działa natychmiast bez czekania na cron
+- Nie wymaga dodatkowej konfiguracji serwera
 
 **Plik:** `src/Feature/Booking/EventListener/BookingStatusUpdateListener.php`
 
@@ -43,7 +43,7 @@ Command znajduje wszystkie rezerwacje ze statusem `active`, których czas zakoń
 
 ### Wybór metody w zależności od środowiska:
 
-#### 🐳 Docker (REKOMENDOWANE dla tego projektu)
+#### Docker (REKOMENDOWANE dla tego projektu)
 
 Dodaj serwis `cron` do pliku `docker-compose.yml` lub `docker-compose.prod.yml`:
 
@@ -85,9 +85,7 @@ docker-compose logs -f cron
 docker-compose exec cron tail -f /var/log/cron.log
 ```
 
-#### 🖥️ Serwer VPS/Dedykowany (Linux)
-
-#### 🖥️ Serwer VPS/Dedykowany (Linux)
+#### Serwer VPS/Dedykowany (Linux)
 
 Zaloguj się na serwer przez SSH i edytuj crontab:
 ```bash
@@ -112,7 +110,7 @@ Sprawdź czy działa:
 tail -f /var/log/booking-update.log
 ```
 
-#### 🌐 Hosting współdzielony (cPanel, Plesk)
+#### Hosting współdzielony (cPanel, Plesk)
 
 1. Zaloguj się do panelu administracyjnego hostingu
 2. Znajdź sekcję **"Cron Jobs"** lub **"Zaplanowane zadania"**
@@ -120,54 +118,6 @@ tail -f /var/log/booking-update.log
    - **Częstotliwość:** Co 5 minut (*/5 * * * *)
    - **Komenda:** `/usr/bin/php /home/username/public_html/bin/console app:booking:update-status`
    - **Email powiadomień:** Twój email (opcjonalnie)
-
-#### ☁️ Cloud Platforms
-
-**AWS:**
-- Użyj **EventBridge (CloudWatch Events)** + Lambda lub ECS Scheduled Tasks
-- Lub dodaj cron do EC2 instance (jak VPS powyżej)
-
-**Google Cloud:**
-- Użyj **Cloud Scheduler** do wywoływania Cloud Run/Cloud Functions
-
-**Azure:**
-- Użyj **Azure Functions** z Timer Trigger
-
-**Heroku:**
-- Użyj dodatku **Heroku Scheduler**
-- Komenda: `php bin/console app:booking:update-status`
-
-#### 🔄 Bez dostępu do serwera?
-
-Jeśli **nie masz dostępu do crona** na serwerze, użyj zewnętrznego serwisu:
-
-1. **EasyCron.com** - darmowy do 1000 wywołań/miesiąc
-2. **Cron-job.org** - darmowy
-3. **SetCronJob.com** - darmowy
-
-Musisz wtedy stworzyć endpoint w aplikacji, który będzie wywoływany przez zewnętrzny serwis:
-
-```php
-// src/Feature/Booking/Controller/BookingController.php
-#[Route('/webhook/update-booking-status', methods: ['POST'])]
-public function webhookUpdateStatus(Request $request): JsonResponse
-{
-    // Zabezpiecz przed nieautoryzowanym dostępem!
-    $secret = $request->headers->get('X-Webhook-Secret');
-    if ($secret !== $_ENV['WEBHOOK_SECRET']) {
-        return new JsonResponse(['error' => 'Unauthorized'], 403);
-    }
-
-    $count = $this->bookingService->updateExpiredBookingStatuses();
-    
-    return new JsonResponse([
-        'success' => true,
-        'updated' => $count
-    ]);
-}
-```
-
----
 
 ### Docker
 
@@ -187,10 +137,7 @@ services:
         cron -f
       "
 ```
-
-### Windows Task Scheduler
-
-#### 💻 Windows (Task Scheduler)
+#### Windows (Task Scheduler)
 
 1. Otwórz Task Scheduler
 2. Utwórz nowe zadanie (Create Task)
@@ -199,19 +146,6 @@ services:
    - Program: `php.exe`
    - Arguments: `bin/console app:booking:update-status`
    - Start in: `C:\sciezka\do\projektu`
-
----
-
-## 🎯 Które rozwiązanie wybrać?
-
-| Środowisko | Rekomendacja |
-|------------|--------------|
-| **Development lokalnie** | Docker cron lub uruchamiaj ręcznie |
-| **Serwer VPS** | Crontab na serwerze |
-| **Hosting współdzielony** | Panel hostingu (cPanel/Plesk) |
-| **Docker Production** | Kontener cron w docker-compose |
-| **Cloud (AWS/GCP/Azure)** | Natywne narzędzia cloud (CloudWatch, Cloud Scheduler) |
-| **Brak dostępu do crona** | Zewnętrzny serwis + webhook |
 
 ---
 
@@ -242,25 +176,6 @@ Możesz sprawdzić logi cron job:
 ```bash
 tail -f /var/log/booking-update.log
 ```
-
-## Częstotliwość uruchamiania
-
-Zalecana częstotliwość to **5-10 minut**. Nie ma sensu uruchamiać częściej (np. co minutę), ponieważ:
-- Większość rezerwacji trwa co najmniej 30-60 minut
-- Rzadko zdarza się, że ktoś potrzebuje natychmiastowej aktualizacji statusu
-- Częstsze uruchamianie niepotrzebnie obciąża bazę danych
-
-## Alternatywne rozwiązanie
-
-Jeśli nie możesz skonfigurować cron, możesz:
-
-1. Używać Symfony Messenger z Message Scheduler
-2. Uruchamiać command z zewnętrznego serwisu (np. GitHub Actions, webhook)
-3. Zaimplementować "lazy update" - aktualizować status przy pobieraniu danych
-
-## Testowanie
-
-Szczegółowe procedury testowania znajdziesz w [dokumentacji testowej](11-booking-status-update-testing.md).
 
 ## Implementacja w kodzie
 

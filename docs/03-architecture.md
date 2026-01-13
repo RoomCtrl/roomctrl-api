@@ -316,25 +316,23 @@ class BookingService
 
 ## Event System
 
-System wykorzystuje Symfony Event Dispatcher do obsługi zdarzeń:
+System wykorzystuje Symfony Kernel Events do obsługi zdarzeń. Projekt używa **dwóch sposobów** rejestracji event listenerów:
 
-### Event Listeners
+### 1. Ręczna rejestracja w services.yaml
 
 ```php
 // src/Feature/Auth/EventListener/CheckAuthenticationDataListener.php
 class CheckAuthenticationDataListener
 {
-    #[AsEventListener(event: KernelEvents::REQUEST, priority: 30)]
     public function onKernelRequest(RequestEvent $event): void
     {
-        // Walidacja danych uwierzytelniających
+        // Walidacja danych uwierzytelniających przed logowaniem
     }
 }
 
 // src/Common/EventListener/ExceptionListener.php
 class ExceptionListener
 {
-    #[AsEventListener(event: KernelEvents::EXCEPTION, priority: 10)]
     public function onKernelException(ExceptionEvent $event): void
     {
         // Globalna obsługa wyjątków
@@ -343,7 +341,7 @@ class ExceptionListener
 }
 ```
 
-Rejestracja w `services.yaml`:
+Rejestracja w `config/services.yaml`:
 ```yaml
 App\Feature\Auth\EventListener\CheckAuthenticationDataListener:
     tags:
@@ -353,6 +351,24 @@ App\Common\EventListener\ExceptionListener:
     tags:
         - { name: kernel.event_listener, event: kernel.exception, priority: 10 }
 ```
+
+### 2. Atrybuty PHP 8 (autoconfigure)
+
+```php
+// src/Feature/Booking/EventListener/BookingStatusUpdateListener.php
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+
+#[AsEventListener(event: KernelEvents::CONTROLLER, priority: 10)]
+class BookingStatusUpdateListener
+{
+    public function onKernelController(ControllerEvent $event): void
+    {
+        // Automatyczna aktualizacja statusów rezerwacji
+    }
+}
+```
+
+Dzięki `autoconfigure: true` w services.yaml, listenery z atrybutem są automatycznie rejestrowane.
 
 ## Walidacja
 

@@ -16,73 +16,54 @@ System RoomCtrl API składa się z 9 głównych encji:
 | **IssueNote** | issue_notes | Notatki do usterek | ManyToOne → RoomIssue, ManyToOne → User |
 | **IssueHistory** | issue_history | Historia zmian usterek | ManyToOne → RoomIssue, ManyToOne → User |
 
-## Diagram relacji ERD
+### Relacje między encjami
 
-```
-┌──────────────────┐         ┌──────────────────┐
-│  Organization    │◄────────┤      User        │
-│                  │ 1     * │                  │
-│  - id (uuid)     │         │  - id (uuid)     │
-│  - regon         │         │  - username      │
-│  - name          │         │  - password      │
-│  - email         │         │  - roles[]       │
-└────────┬─────────┘         │  - firstName     │
-         │                   │  - lastName      │
-         │ *                 │  - email         │
-         │                   │  - phone         │
-         │                   │  - isActive      │
-         │                   │  - organization  │
-         │                   └─────┬──────┬─────┘
-         │                         │      │
-         │                         │      │ * (favorites)
-         │                         │      │
-         │                         │      │
-         │                         │  ┌───▼──────────┐
-         │                         │  │     Room     │
-         │                         │  │              │
-         │                       * │  │ - id (uuid)  │
-    ┌────▼───────────┐            │  │ - roomName   │
-    │   RoomIssue    │            │  │ - capacity   │
-    │                │            │  │ - size       │
-    │ - id (uuid)    │◄───────────┘  │ - location   │
-    │ - category     │ 1          *  │ - access     │
-    │ - description  │               │ - ...        │
-    │ - status       │               └──┬────┬──────┘
-    │ - priority     │                  │    │
-    │ - reporter     │                  │    │ 1
-    │ - organization │                  │    │
-    └────┬───────────┘                  │    │
-         │                              │ *  │
-         │ 1                            │    │
-         │                              │  ┌─▼───────────┐
-         │                              │  │ RoomStatus  │
-         │                              │  │             │
-    ┌────▼───────────┐            ┌────▼──┤ - id        │
-    │  IssueNote     │            │Equip. │ - status    │
-    │                │            │       │ - room      │
-    │ - id (uuid)    │            │- name │ - ...       │
-    │ - content      │            │- cat. │             │
-    │ - author       │            │- qty  │             │
-    │ - issue        │            │- room │             │
-    └────────────────┘            └───────┘             │
-                                                         │
-    ┌────────────────┐                                  │
-    │ IssueHistory   │                                  │
-    │                │                                  │
-    │ - id (uuid)    │                               *  │
-    │ - issue        │                          ┌───────▼────────┐
-    │ - changedBy    │                          │    Booking     │
-    │ - fieldChanged │                          │                │
-    │ - oldValue     │                          │ - id (uuid)    │
-    │ - newValue     │                          │ - title        │
-    │ - createdAt    │                          │ - startedAt    │
-    └────────────────┘                          │ - endedAt      │
-                                                │ - status       │
-                                                │ - room         │
-                                                │ - user         │
-                                                │ - participants │
-                                                └────────────────┘
-```
+| Encja (Strona właściciela) | Relacja | Encja (Strona odwrotna) | Opis |
+|----------------------------|---------|-------------------------|------|
+| **User** | ManyToOne | **Organization** | Użytkownik należy do organizacji |
+| **User** | ManyToMany | **Room** | Użytkownik może dodać sale do ulubionych |
+| **Room** | ManyToOne | **Organization** | Sala należy do organizacji |
+| **Room** | OneToOne | **RoomStatus** | Sala ma jeden status |
+| **Room** | OneToMany | **Equipment** | Sala ma wiele elementów wyposażenia |
+| **Room** | OneToMany | **Booking** | Sala ma wiele rezerwacji |
+| **Room** | OneToMany | **RoomIssue** | Sala ma wiele zgłoszonych usterek |
+| **Booking** | ManyToOne | **Room** | Rezerwacja jest przypisana do sali |
+| **Booking** | ManyToOne | **User** | Rezerwacja jest utworzona przez użytkownika |
+| **Booking** | ManyToMany | **User** | Rezerwacja ma wielu uczestników |
+| **RoomIssue** | ManyToOne | **Room** | Usterka dotyczy sali |
+| **RoomIssue** | ManyToOne | **User** | Usterka jest zgłoszona przez użytkownika |
+| **RoomIssue** | ManyToOne | **Organization** | Usterka należy do organizacji |
+| **RoomIssue** | OneToMany | **IssueNote** | Usterka ma wiele notatek |
+| **RoomIssue** | OneToMany | **IssueHistory** | Usterka ma historię zmian |
+| **IssueNote** | ManyToOne | **RoomIssue** | Notatka należy do usterki |
+| **IssueNote** | ManyToOne | **User** | Notatka jest napisana przez użytkownika |
+| **IssueHistory** | ManyToOne | **RoomIssue** | Wpis historii należy do usterki |
+| **IssueHistory** | ManyToOne | **User** | Wpis historii jest utworzony przez użytkownika |
+
+### Grupy funkcjonalne
+
+#### Moduł organizacji i użytkowników
+- Organization (1) -> (N) User
+- Organization (1) -> (N) Room
+- Organization (1) -> (N) RoomIssue
+
+#### Moduł sal konferencyjnych
+- Room (1) -> (1) RoomStatus
+- Room (1) -> (N) Equipment
+- Room (N) <-> (N) User (ulubione)
+
+#### Moduł rezerwacji
+- Booking (N) -> (1) Room
+- Booking (N) -> (1) User (twórca)
+- Booking (N) <-> (N) User (uczestnicy)
+
+#### Moduł usterek
+- RoomIssue (N) -> (1) Room
+- RoomIssue (N) -> (1) User (zgłaszający)
+- RoomIssue (1) -> (N) IssueNote
+- RoomIssue (1) -> (N) IssueHistory
+- IssueNote (N) -> (1) User (autor)
+- IssueHistory (N) -> (1) User (kto zmienił)
 
 ## Szczegółowe opisy encji
 
@@ -463,9 +444,6 @@ private ?Uuid $id = null;
 - `createdAt`: DateTimeImmutable - automatyczne ustawienie w konstruktorze
 - `updatedAt`: DateTimeImmutable - opcjonalne, można dodać przez lifecycle callbacks
 - `closedAt`, `reportedAt`: DateTimeImmutable - specyficzne dla encji
-
-### Soft Delete
-System nie używa soft delete - rekordy są fizycznie usuwane z bazy.
 
 ### Cascade Operations
 - **persist**: Automatyczne zapisywanie powiązanych encji

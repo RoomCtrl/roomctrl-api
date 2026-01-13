@@ -282,10 +282,10 @@ class OrganizationServiceTest extends TestCase
 
 #### 1. Nazewnictwo
 ```php
-// ✅ Dobre - jasno określa co jest testowane
+// Dobre - jasno określa co jest testowane
 public function testDeleteOrganizationReturnsConflictWhenHasUsers(): void
 
-// ❌ Złe - niejasne
+// Złe - niejasne
 public function testDelete(): void
 ```
 
@@ -586,11 +586,6 @@ Logi znajdują się w: `var/log/dev.log` (dev) lub `var/log/prod.log` (prod)
 
 ### SQL Queries Debug
 
-```bash
-# Pokaż wszystkie zapytania wykonane podczas żądania
-# W Symfony Profiler → Doctrine → Queries
-```
-
 W kodzie:
 ```php
 use Doctrine\ORM\EntityManagerInterface;
@@ -647,13 +642,6 @@ http POST :8000/api/rooms \
   Authorization:"Bearer $TOKEN" \
   roomName="Test" capacity:=10 size:=50.0
 ```
-
-### Postman / Insomnia
-
-Zaimportuj kolekcję z OpenAPI:
-1. Otwórz `http://localhost:8000/api/doc.json`
-2. Zapisz JSON
-3. Zaimportuj do Postman/Insomnia
 
 ### Swagger UI
 
@@ -756,21 +744,21 @@ WHERE datname = 'roomctrl_dev' AND pid <> pg_backend_pid();
 
 ### 1. Używaj type hints
 ```php
-// ✅ DOBRE
+// DOBRE
 public function createUser(CreateUserDTO $dto): User
 
-// ❌ ZŁE
+// ZŁE
 public function createUser($dto)
 ```
 
 ### 2. Używaj dependency injection
 ```php
-// ✅ DOBRE
+// DOBRE
 public function __construct(
     private UserRepository $userRepository
 ) {}
 
-// ❌ ZŁE
+// ZŁE
 public function getUser() {
     $repo = new UserRepository();
 }
@@ -778,19 +766,19 @@ public function getUser() {
 
 ### 3. Waliduj dane wejściowe
 ```php
-// ✅ DOBRE
+// DOBRE
 $errors = $this->validator->validate($dto);
 if (count($errors) > 0) {
     throw new ValidationException();
 }
 
-// ❌ ZŁE
+// ZŁE
 // Bezpośrednie użycie danych z requestu
 ```
 
 ### 4. Używaj transactions dla atomowości
 ```php
-// ✅ DOBRE
+// DOBRE
 $this->entityManager->beginTransaction();
 try {
     $this->entityManager->persist($booking);
@@ -805,7 +793,7 @@ try {
 
 ### 5. Loguj istotne operacje
 ```php
-// ✅ DOBRE
+// DOBRE
 $this->logger->info('Booking created', [
     'bookingId' => $booking->getId(),
     'userId' => $user->getId(),
@@ -815,7 +803,7 @@ $this->logger->info('Booking created', [
 
 ### 6. Używaj DTO dla request/response
 ```php
-// ✅ DOBRE
+// DOBRE
 public function create(Request $request): JsonResponse
 {
     $dto = new CreateBookingDTO();
@@ -912,23 +900,17 @@ class NewFeatureController extends AbstractController
 ### Przygotowanie do produkcji
 
 ```bash
-# 1. Ustaw środowisko
 export APP_ENV=prod
 export APP_DEBUG=0
 
-# 2. Zainstaluj tylko produkcyjne zależności
 composer install --no-dev --optimize-autoloader
 
-# 3. Wyczyść cache
 php bin/console cache:clear --env=prod
 
-# 4. Podgrzej cache
 php bin/console cache:warmup --env=prod
 
-# 5. Wykonaj migracje
 php bin/console doctrine:migrations:migrate --no-interaction
 
-# 6. Sprawdź bezpieczeństwo
 symfony security:check
 composer audit
 ```
@@ -963,21 +945,13 @@ grep ERROR var/log/prod.log
 cat var/log/prod.log | grep ERROR | wc -l
 ```
 
-### Metryki
-
-Zalecane narzędzia:
-- **Sentry** - Error tracking
-- **New Relic** / **Datadog** - APM
-- **Prometheus** + **Grafana** - Metryki
-- **ELK Stack** - Log aggregation
-
 ## Podsumowanie
 
 RoomCtrl API zapewnia kompleksowe narzędzia do:
-- ✅ Rozwoju lokalnego
-- ✅ Debugowania
-- ✅ Testowania
-- ✅ Wdrożenia na produkcję
-- ✅ Monitoringu
+- Rozwoju lokalnego
+- Debugowania
+- Testowania
+- Wdrożenia na produkcję
+- Monitoringu
 
 Postępuj zgodnie z best practices i konwencjami projektu dla spójności kodu.

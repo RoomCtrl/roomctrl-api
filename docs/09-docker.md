@@ -8,44 +8,64 @@ Projekt RoomCtrl API zawiera kompletną konfigurację Docker dla środowisk dewe
 
 | Komponent | Obraz | Opis |
 |-----------|-------|------|
-| **app** | php:8.4-apache | Aplikacja Symfony + Apache |
-| **db** | postgres:18-alpine | Baza danych PostgreSQL |
+| **php** | php:8.4-fpm-alpine | Aplikacja Symfony (PHP-FPM) |
+| **nginx** | nginx:alpine | Serwer WWW |
+| **postgres** | postgres:18-alpine | Baza danych PostgreSQL |
 | **mailhog** | mailhog/mailhog | SMTP testing (tylko dev) |
+| **cron** | php:8.4-fpm-alpine | Cronjob dla aktualizacji statusów |
 
 ## Architektura
 
-```
-┌─────────────────────────────────────────┐
-│         Docker Network (bridge)         │
-│                                         │
-│  ┌───────────┐      ┌───────────┐     │
-│  │    app    │─────▶│    db     │     │
-│  │ PHP 8.4   │      │PostgreSQL │     │
-│  │ Apache    │      │    18     │     │
-│  └─────┬─────┘      └───────────┘     │
-│        │                               │
-│        │ (dev only)                    │
-│        │                               │
-│  ┌─────▼─────┐                        │
-│  │  mailhog  │                        │
-│  │SMTP tester│                        │
-│  └───────────┘                        │
-└─────────────────────────────────────────┘
-```
+### Przepływ żądań
+
+**Request → nginx → PHP-FPM → PostgreSQL/MailHog**
+
+1. **Zewnętrzny request** → Port 8080 (dev) / 80 (prod)
+2. **nginx** (serwer WWW) → Reverse proxy, obsługa statycznych plików
+3. **php (PHP-FPM)** → Aplikacja Symfony, logika biznesowa
+4. **postgres** → Przechowywanie danych (port 5432 w dev)
+5. **mailhog** → Testowanie emaili (tylko dev, SMTP:1025, UI:8025)
+6. **cron** → Automatyczna aktualizacja statusów rezerwacji
+
+### Komunikacja między kontenerami
+
+| Od | Do | Port | Cel |
+|----|----|------|-----|
+| nginx | php | 9000 | FastCGI (PHP-FPM) |
+| php | postgres | 5432 | Połączenie z bazą danych |
+| php | mailhog | 1025 | SMTP (wysyłka emaili w dev) |
+| cron | postgres | 5432 | Aktualizacja statusów rezerwacji |
+| Host | nginx | 8080 (dev) / 80 (prod) | HTTP requests |
+| Host | postgres | 5432 (tylko dev) | Bezpośrednie połączenie DB |
+| Host | mailhog | 8025 (tylko dev) | UI MailHog |
+
+### Sieć Docker
+
+- **Network name**: `roomctrl_network` (bridge driver)
+- **Komunikacja wewnętrzna**: Przez nazwy serwisów (np. `php`, `postgres`)
+- **Izolacja**: Kontenery widzą się tylko w obrębie tej samej sieci
+- **DNS**: Docker automatycznie rozwiązuje nazwy serwisów na adresy IP
 
 ## Pliki konfiguracyjne
 
 ```
 .
-├── Dockerfile                  # Multi-stage (dev + prod)
-├── docker-compose.yml          # Development
-├── docker-compose.prod.yml     # Production
+├── Dockerfile.dev             # Development
+├── Dockerfile.prod            # Production
+├── docker-compose.yml         # Development
+├── docker-compose.prod.yml    # Production
 ├── .dockerignore              # Ignorowane pliki
-├── .env.docker                # Przykładowe zmienne
-├── docker-setup.sh            # Skrypt setup
+├── .env.dev.example           # Przykładowe zmienne (dev)
+├── .env.prod.example          # Przykładowe zmienne (prod)
+├── start-dev.sh               # Skrypt setup dev
+├── start-prod.sh              # Skrypt setup prod
+├── database-dev.sh            # Skrypt bazy danych dev
+├── database-prod.sh           # Skrypt bazy danych prod
 └── docker/
-    └── apache/
-        └── vhost.conf         # Konfiguracja Apache VirtualHost
+    ├── entrypoint.prod.sh     # Entrypoint dla produkcji
+    └── nginx/
+        ├── dev.conf           # Nginx config dev
+        └── prod.conf          # Nginx config prod
 ```
 
 ---
@@ -56,15 +76,22 @@ Projekt RoomCtrl API zawiera kompletną konfigurację Docker dla środowisk dewe
 
 ```bash
 # 1. Skopiuj przykładowy .env
-cp .env.docker .env
+cp .env.dev.example .env
 
 # 2. Edytuj .env i ustaw:
 #    - APP_SECRET (losowy ciąg)
 #    - JWT_PASSPHRASE (hasło do kluczy JWT)
+#    - POSTGRES_PASSWORD (hasło do bazy)
 
 # 3. Uruchom automatyczny setup
-chmod +x docker-setup.sh
-./docker-setup.sh
+chmod +x start-dev.sh
+./start-dev.sh
+```
+
+**Lub użyj skryptu database-dev.sh tylko do bazy:**
+```bash
+chmod +x database-dev.sh
+./database-dev.sh
 ```
 
 ### Ręczny setup (krok po kroku)
@@ -73,7 +100,7 @@ chmod +x docker-setup.sh
 
 ```bash
 # Skopiuj .env
-cp .env.docker .env
+cp .env.dev.example .env
 # Edytuj wartości w .env
 nano .env
 ```
@@ -82,23 +109,22 @@ nano .env
 
 ```bash
 # Build kontenerów
-docker-compose build
+docker compose build
 
 # Uruchom w tle
-docker-compose up -d
+docker compose up -d
 
 # Sprawdź status
-docker-compose ps
+docker compose ps
 ```
 
 #### 3. Generowanie kluczy JWT
 
 ```bash
-docker-compose exec app bash -c '
+docker compose exec php bash -c '
   mkdir -p config/jwt
   openssl genpkey -out config/jwt/private.pem -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096 -pass pass:${JWT_PASSPHRASE}
   openssl pkey -in config/jwt/private.pem -out config/jwt/public.pem -pubout -passin pass:${JWT_PASSPHRASE}
-  chown www-data:www-data config/jwt/*.pem
   chmod 600 config/jwt/private.pem
   chmod 644 config/jwt/public.pem
 '
@@ -107,28 +133,27 @@ docker-compose exec app bash -c '
 #### 4. Instalacja zależności
 
 ```bash
-docker-compose exec app composer install
+docker compose exec php composer install
 ```
 
 #### 5. Baza danych
 
 ```bash
 # Utworzenie bazy
-docker-compose exec app php bin/console doctrine:database:create
+docker compose exec php php bin/console doctrine:database:create
 
 # Migracje
-docker-compose exec app php bin/console doctrine:migrations:migrate --no-interaction
+docker compose exec php php bin/console doctrine:migrations:migrate --no-interaction
 
 # Fixtures (opcjonalnie)
-docker-compose exec app php bin/console doctrine:fixtures:load --no-interaction
+docker compose exec php php bin/console doctrine:fixtures:load --no-interaction
 ```
 
 #### 6. Uprawnienia
 
 ```bash
-docker-compose exec app bash -c '
+docker compose exec php bash -c '
   mkdir -p public/uploads/rooms
-  chown -R www-data:www-data var/ public/uploads/
   chmod -R 775 var/ public/uploads/
 '
 ```
@@ -137,91 +162,93 @@ docker-compose exec app bash -c '
 
 | Usługa | URL | Opis |
 |--------|-----|------|
-| **API** | http://localhost:8000 | Główne API |
-| **Swagger UI** | http://localhost:8000/api/doc | Dokumentacja interaktywna |
+| **API** | http://localhost:8080 | Główne API (nginx) |
+| **Swagger UI** | http://localhost:8080/api/doc | Dokumentacja interaktywna |
 | **MailHog UI** | http://localhost:8025 | Podgląd wysłanych emaili |
+| **PostgreSQL** | localhost:5432 | Bezpośrednie połączenie z DB |
 
 ### Komendy Docker (Development)
 
 ```bash
 # Sprawdź status kontenerów
-docker-compose ps
+docker compose ps
 
 # Logi
-docker-compose logs -f                  # Wszystkie
-docker-compose logs -f app             # Tylko app
-docker-compose logs -f db              # Tylko baza
+docker compose logs -f                  # Wszystkie
+docker compose logs -f php             # Tylko php
+docker compose logs -f nginx           # Tylko nginx
+docker compose logs -f postgres        # Tylko baza
 
 # Wejdź do kontenera
-docker-compose exec app bash           # Shell w app
-docker-compose exec db psql -U roomctrl -d roomctrl_dev  # PostgreSQL CLI
+docker compose exec php sh             # Shell w php
+docker compose exec postgres psql -U roomctrl -d roomctrl_db  # PostgreSQL CLI
 
 # Restart usług
-docker-compose restart app
-docker-compose restart db
+docker compose restart php
+docker compose restart postgres
 
 # Stop
-docker-compose stop
+docker compose stop
 
 # Stop i usuń kontenery
-docker-compose down
+docker compose down
 
 # Stop, usuń kontenery i volumes (USUWA DANE!)
-docker-compose down -v
+docker compose down -v
 
 # Rebuild po zmianach w Dockerfile
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ### Symfony Commands w Docker
 
 ```bash
 # Cache
-docker-compose exec app php bin/console cache:clear
+docker compose exec php php bin/console cache:clear
 
 # Migracje
-docker-compose exec app php bin/console doctrine:migrations:diff
-docker-compose exec app php bin/console doctrine:migrations:migrate
+docker compose exec php php bin/console doctrine:migrations:diff
+docker compose exec php php bin/console doctrine:migrations:migrate
 
 # Fixtures
-docker-compose exec app php bin/console doctrine:fixtures:load
+docker compose exec php php bin/console doctrine:fixtures:load
 
 # Routing
-docker-compose exec app php bin/console debug:router
+docker compose exec php php bin/console debug:router
 
 # Composer
-docker-compose exec app composer install
-docker-compose exec app composer update
-docker-compose exec app composer require package/name
+docker compose exec php composer install
+docker compose exec php composer update
+docker compose exec php composer require package/name
 ```
 
 ### Uruchamianie testów w Docker
 
 ```bash
 # Wszystkie testy
-docker-compose exec php composer test
+docker compose exec php composer test
 
 # Z coverage (generuje HTML w coverage/)
-docker-compose exec php composer test:coverage
+docker compose exec php composer test:coverage
 
 # Konkretny plik testowy
-docker-compose exec php vendor/bin/phpunit tests/Feature/Organization/Service/OrganizationServiceTest.php
+docker compose exec php vendor/bin/phpunit tests/Feature/Organization/Service/OrganizationServiceTest.php
 
 # Konkretny test
-docker-compose exec php vendor/bin/phpunit --filter testDeleteOrganizationSucceedsWhenNoUsers
+docker compose exec php vendor/bin/phpunit --filter testDeleteOrganizationSucceedsWhenNoUsers
 
 # Z verbose output
-docker-compose exec php vendor/bin/phpunit --verbose
+docker compose exec php vendor/bin/phpunit --verbose
 
 # PHP CodeSniffer - sprawdzenie kodu
-docker-compose exec php composer phpcs
+docker compose exec php composer phpcs
 
 # Automatyczne naprawianie kodu
-docker-compose exec php composer phpcs:fix
+docker compose exec php composer phpcs:fix
 
 # Stop on failure
-docker-compose exec php vendor/bin/phpunit --stop-on-failure
+docker compose exec php vendor/bin/phpunit --stop-on-failure
 ```
 
 **Wskazówki dotyczące testów:**
@@ -271,20 +298,20 @@ networks:
 **Uruchomienie środowiska testowego:**
 ```bash
 # Build i start testowego środowiska
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 
 # Przygotuj bazę testową
-docker-compose -f docker-compose.test.yml exec php-test php bin/console doctrine:database:create --if-not-exists
-docker-compose -f docker-compose.test.yml exec php-test php bin/console doctrine:migrations:migrate --no-interaction
+docker compose -f docker-compose.test.yml exec php-test php bin/console doctrine:database:create --if-not-exists
+docker compose -f docker-compose.test.yml exec php-test php bin/console doctrine:migrations:migrate --no-interaction
 
 # Uruchom testy
-docker-compose -f docker-compose.test.yml exec php-test composer test
+docker compose -f docker-compose.test.yml exec php-test composer test
 
 # Z coverage
-docker-compose -f docker-compose.test.yml exec php-test composer test:coverage
+docker compose -f docker-compose.test.yml exec php-test composer test:coverage
 
 # Cleanup
-docker-compose -f docker-compose.test.yml down -v
+docker compose -f docker-compose.test.yml down -v
 ```
 
 ### Xdebug (Development)
@@ -347,7 +374,7 @@ APP_PORT=80
 #### 2. Build obrazu produkcyjnego
 
 ```bash
-docker-compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml build --no-cache
 ```
 
 #### 3. Generowanie kluczy JWT (jednorazowo)
@@ -370,21 +397,21 @@ chmod 644 config/jwt/public.pem
 export $(cat .env.prod | xargs)
 
 # Uruchom
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 #### 5. Migracje bazy danych
 
 ```bash
-docker-compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
+docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
 ```
 
 #### 6. Uprawnienia dla katalogów (jeśli potrzebne)
 
 ```bash
 # Upewnij się, że katalog uploads ma odpowiednie uprawnienia
-docker-compose -f docker-compose.prod.yml exec php chown -R www-data:www-data /var/www/html/public/uploads
-docker-compose -f docker-compose.prod.yml exec php chmod -R 775 /var/www/html/public/uploads
+docker compose -f docker-compose.prod.yml exec php chown -R www-data:www-data /var/www/html/public/uploads
+docker compose -f docker-compose.prod.yml exec php chmod -R 775 /var/www/html/public/uploads
 ```
 
 **WAŻNE:** 
@@ -397,35 +424,35 @@ docker-compose -f docker-compose.prod.yml exec php chmod -R 775 /var/www/html/pu
 
 ```bash
 # Status kontenerów
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Health check API
 curl http://localhost/api/doc
 
 # Logi
-docker-compose -f docker-compose.prod.yml logs -f app
+docker compose -f docker-compose.prod.yml logs -f php
 ```
 
 ### Produkcyjne optimizacje
 
 **Dockerfile production stage:**
-- ✅ Brak Xdebug
-- ✅ OPcache włączony
-- ✅ `display_errors = Off`
-- ✅ Composer install `--no-dev`
-- ✅ Symfony cache pre-warmed
-- ✅ Classmap authoritative
-- ✅ Usunięte niepotrzebne pliki (.git, tests, docker-compose)
+- Brak Xdebug
+- OPcache włączony
+- `display_errors = Off`
+- Composer install `--no-dev`
+- Symfony cache pre-warmed
+- Classmap authoritative
+- Usunięte niepotrzebne pliki (.git, tests, docker-compose)
 
 **Apache:**
-- ✅ Security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
-- ✅ Rewrite rules dla Symfony
-- ✅ Optimized PHP settings
+- Security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
+- Rewrite rules dla Symfony
+- Optimized PHP settings
 
 **PostgreSQL:**
-- ✅ Health checks
-- ✅ Persistent volumes
-- ✅ Backups volume
+- Health checks
+- Persistent volumes
+- Backups volume
 
 ### Backup bazy danych (Production)
 
@@ -433,33 +460,33 @@ docker-compose -f docker-compose.prod.yml logs -f app
 
 ```bash
 # Backup do pliku
-docker-compose -f docker-compose.prod.yml exec db pg_dump -U roomctrl_prod -d roomctrl_prod -F c -f /backups/backup_$(date +%Y%m%d_%H%M%S).dump
+docker compose -f docker-compose.prod.yml exec postgres pg_dump -U roomctrl_prod -d roomctrl_prod -F c -f /backups/backup_$(date +%Y%m%d_%H%M%S).dump
 
 # Skopiuj backup z kontenera
-docker cp roomctrl_db_prod:/backups/backup_20260103_120000.dump ./backups/
+docker cp roomctrl_postgres_prod:/backups/backup_20260103_120000.dump ./backups/
 ```
 
 #### Automatyczny backup (service backup)
 
 ```bash
 # Uruchom backup service
-docker-compose -f docker-compose.prod.yml --profile backup run db-backup
+docker compose -f docker-compose.prod.yml --profile backup run db-backup
 ```
 
 Możesz dodać to do crona:
 ```cron
 # Backup codziennie o 2:00 AM
-0 2 * * * cd /path/to/app && docker-compose -f docker-compose.prod.yml --profile backup run db-backup
+0 2 * * * cd /path/to/app && docker compose -f docker-compose.prod.yml --profile backup run db-backup
 ```
 
 #### Restore z backupu
 
 ```bash
 # Skopiuj backup do kontenera
-docker cp ./backups/backup_20260103_120000.dump roomctrl_db_prod:/tmp/
+docker cp ./backups/backup_20260103_120000.dump roomctrl_postgres_prod:/tmp/
 
 # Restore
-docker-compose -f docker-compose.prod.yml exec db pg_restore -U roomctrl_prod -d roomctrl_prod -c /tmp/backup_20260103_120000.dump
+docker compose -f docker-compose.prod.yml exec postgres pg_restore -U roomctrl_prod -d roomctrl_prod -c /tmp/backup_20260103_120000.dump
 ```
 
 ### Monitoring (Production)
@@ -468,23 +495,23 @@ docker-compose -f docker-compose.prod.yml exec db pg_restore -U roomctrl_prod -d
 
 ```bash
 # Real-time logs
-docker-compose -f docker-compose.prod.yml logs -f app
+docker compose -f docker-compose.prod.yml logs -f php
 
 # Logi z ostatnich 100 linii
-docker-compose -f docker-compose.prod.yml logs --tail=100 app
+docker compose -f docker-compose.prod.yml logs --tail=100 php
 
 # Tylko błędy
-docker-compose -f docker-compose.prod.yml logs app | grep ERROR
+docker compose -f docker-compose.prod.yml logs php | grep ERROR
 ```
 
 #### Health checks
 
 ```bash
 # Status all services
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Szczegółowy health check
-docker inspect roomctrl_app_prod | jq '.[0].State.Health'
+docker inspect roomctrl_php_prod | jq '.[0].State.Health'
 ```
 
 #### Resource usage
@@ -494,7 +521,7 @@ docker inspect roomctrl_app_prod | jq '.[0].State.Health'
 docker stats
 
 # Zużycie konkretnego kontenera
-docker stats roomctrl_app_prod
+docker stats roomctrl_php_prod
 ```
 
 ### Aktualizacja aplikacji (Production)
@@ -504,35 +531,23 @@ docker stats roomctrl_app_prod
 git pull origin main
 
 # 2. Rebuild obrazu
-docker-compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml build --no-cache
 
 # 3. Stop starych kontenerów
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 
 # 4. Uruchom nowe
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # 5. Migracje (jeśli są)
-docker-compose -f docker-compose.prod.yml exec app php bin/console doctrine:migrations:migrate --no-interaction
+docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
 
 # 6. Cache
-docker-compose -f docker-compose.prod.yml exec app php bin/console cache:clear --env=prod
+docker compose -f docker-compose.prod.yml exec php php bin/console cache:clear --env=prod
 
 # 7. Sprawdź logi
-docker-compose -f docker-compose.prod.yml logs -f app
+docker compose -f docker-compose.prod.yml logs -f php
 ```
-
-### Zero-downtime deployment
-
-Dla zero-downtime deployment użyj strategii Blue-Green:
-
-1. Uruchom nową wersję na innym porcie
-2. Przełącz reverse proxy (nginx) na nowy port
-3. Zatrzymaj starą wersję
-
-Lub użyj orchestratora jak Kubernetes.
-
----
 
 ## Volumes
 
@@ -540,20 +555,20 @@ Lub użyj orchestratora jak Kubernetes.
 
 | Volume | Opis | Persistentny |
 |--------|------|--------------|
-| `postgres-data` | Dane PostgreSQL | ✅ Tak |
-| `vendor` | Zależności Composer | ✅ Tak (przyspieszenie) |
-| `var-cache` | Symfony cache | ✅ Tak |
-| `var-log` | Symfony logs | ✅ Tak |
-| `.` (bind mount) | Kod źródłowy | ✅ Tak (live reload) |
+| `postgres-data` | Dane PostgreSQL | Tak |
+| `vendor` | Zależności Composer | Tak (przyspieszenie) |
+| `var-cache` | Symfony cache | Tak |
+| `var-log` | Symfony logs | Tak |
+| `.` (bind mount) | Kod źródłowy | Tak (live reload) |
 
 ### Production volumes
 
 | Volume | Opis | Backup |
 |--------|------|--------|
-| `postgres-data` | Dane PostgreSQL | ⚠️ Wymagany |
-| `postgres-backups` | Backupy bazy | ⚠️ Wymagany |
-| `uploads` | Uploaded pliki | ⚠️ Wymagany |
-| `app-logs` | Logi aplikacji | ℹ️ Opcjonalny |
+| `postgres-data` | Dane PostgreSQL | Wymagany |
+| `postgres-backups` | Backupy bazy | Wymagany |
+| `uploads` | Uploaded pliki | Wymagany |
+| `app-logs` | Logi aplikacji | Opcjonalny |
 
 ### Zarządzanie volumes
 
@@ -562,16 +577,16 @@ Lub użyj orchestratora jak Kubernetes.
 docker volume ls
 
 # Inspekcja volume
-docker volume inspect roomctrl-api_postgres-data
+docker volume inspect roomctrl-api_postgres_data
 
 # Usuń wszystkie nieużywane volumes (OSTROŻNIE!)
 docker volume prune
 
 # Backup volume
-docker run --rm -v roomctrl-api_postgres-data:/data -v $(pwd):/backup alpine tar czf /backup/postgres-data-backup.tar.gz -C /data .
+docker run --rm -v roomctrl-api_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres-data-backup.tar.gz -C /data .
 
 # Restore volume
-docker run --rm -v roomctrl-api_postgres-data:/data -v $(pwd):/backup alpine tar xzf /backup/postgres-data-backup.tar.gz -C /data
+docker run --rm -v roomctrl-api_postgres_data:/data -v $(pwd):/backup alpine tar xzf /backup/postgres-data-backup.tar.gz -C /data
 ```
 
 ---
@@ -579,23 +594,26 @@ docker run --rm -v roomctrl-api_postgres-data:/data -v $(pwd):/backup alpine tar
 ## Networking
 
 ### Network name
-- Development: `roomctrl-api_roomctrl-network`
-- Production: `roomctrl-api_roomctrl-network`
+- Development: `roomctrl-api_roomctrl_network`
+- Production: `roomctrl-api_roomctrl_network`
 
 ### Komunikacja między kontenerami
 
 Kontenery komunikują się przez nazwy serwisów:
-- `app` → `db:5432` (PostgreSQL)
-- `app` → `mailhog:1025` (SMTP w dev)
+- `nginx` → `php:9000` (PHP-FPM)
+- `php` → `postgres:5432` (PostgreSQL)
+- `php` → `mailhog:1025` (SMTP w dev)
+- `cron` → `postgres:5432` (PostgreSQL)
 
 ### External access
-
-**Development:**
-- App: `localhost:8000`
-- DB: `localhost:5432`
+Nginx: `localhost:8080`
+- PostgreSQL: `localhost:5432`
 - MailHog UI: `localhost:8025`
+- MailHog SMTP: `localhost:1025`
 
 **Production:**
+- Nginx: `localhost:80` (HTTP), `localhost:443` (HTTPS)
+- PostgreSQLoduction:**
 - App: `localhost:80` (lub port z APP_PORT)
 - DB: Nie wystawiony na zewnątrz (bezpieczeństwo)
 
@@ -607,22 +625,22 @@ Kontenery komunikują się przez nazwy serwisów:
 
 ```bash
 # Sprawdź logi
-docker-compose logs
+docker compose logs
 
 # Sprawdź szczegóły kontenera
-docker inspect roomctrl_app_dev
+docker inspect roomctrl_php_dev
 ```
 
 ### Problem: "Port already in use"
 
 ```bash
 # Znajdź proces używający portu
-lsof -i :8000
+lsof -i :8080
 # lub
-netstat -tuln | grep 8000
+netstat -tuln | grep 8080
 
 # Zmień port w .env
-APP_PORT=8001
+APP_PORT=8081
 
 # Lub zabij proces
 kill -9 <PID>
@@ -632,7 +650,7 @@ kill -9 <PID>
 
 ```bash
 # Fix uprawnień
-docker-compose exec app bash -c '
+docker compose exec php bash -c '
   chown -R www-data:www-data var/ public/uploads/
   chmod -R 775 var/ public/uploads/
 '
@@ -642,231 +660,44 @@ docker-compose exec app bash -c '
 
 ```bash
 # Sprawdź czy działa
-docker-compose exec db pg_isready -U roomctrl
+docker compose exec postgres pg_isready -U roomctrl
 
 # Sprawdź logi
-docker-compose logs db
+docker compose logs postgres
 
 # Restart bazy
-docker-compose restart db
+docker compose restart postgres
 ```
 
 ### Problem: Zmiany w kodzie nie są widoczne
 
 ```bash
 # Wyczyść cache Symfony
-docker-compose exec app php bin/console cache:clear
+docker compose exec php php bin/console cache:clear
 
 # Lub restart kontenera
-docker-compose restart app
+docker compose restart php
 ```
 
 ### Problem: "Cannot connect to database"
 
 ```bash
-# Sprawdź czy kontener db jest healthy
-docker-compose ps
+# Sprawdź czy kontener postgres jest healthy
+docker compose ps
 
 # Sprawdź connection string w .env
-# DATABASE_URL powinno wskazywać na "db" jako host, nie "localhost"
+# DATABASE_URL powinno wskazywać na "postgres" jako host, nie "localhost"
 
-# Test połączenia z kontenera app
-docker-compose exec app php bin/console doctrine:query:sql "SELECT 1"
+# Test połączenia z kontenera php
+docker compose exec php php bin/console doctrine:query:sql "SELECT 1"
 ```
 
 ### Czyszczenie wszystkiego (Nuclear option)
 
 ```bash
 # UWAGA: To usuwa WSZYSTKO - kontenery, volumes, images!
-docker-compose down -v
+docker compose down -v
 docker system prune -a --volumes
-```
-
----
-
-## Best Practices
-
-### Development
-- ✅ Używaj bind mounts dla live reload
-- ✅ Włącz Xdebug
-- ✅ Używaj MailHog do testowania emaili
-- ✅ Regularnie rób `composer update`
-- ✅ Commituj `composer.lock`
-
-### Production
-- ✅ Używaj tylko named volumes
-- ✅ Wyłącz Xdebug
-- ✅ Włącz OPcache
-- ✅ Ustaw `APP_DEBUG=0`
-- ✅ Używaj silnych haseł
-- ✅ Regularnie rób backupy bazy
-- ✅ Monitoruj logi
-- ✅ Używaj HTTPS (np. przez reverse proxy nginx + Let's Encrypt)
-- ✅ Nie wystawiaj PostgreSQL na zewnątrz
-- ✅ Używaj secrets dla wrażliwych danych (Docker Swarm/Kubernetes)
-
-### Security
-- ✅ Nie commituj `.env` do repozytorium
-- ✅ Używaj `.env.example` jako template
-- ✅ Skanuj obrazy: `docker scan roomctrl-api_app`
-- ✅ Aktualizuj base images regularnie
-- ✅ Używaj konkretnych wersji obrazów (nie `latest`)
-- ✅ Minimalizuj warstwy w Dockerfile
-- ✅ Używaj multi-stage builds
-- ✅ Run containers as non-root user
-
----
-
-## CI/CD Integration
-
-Przykładowa pipeline dla GitHub Actions z testami:
-
-```yaml
-name: Build, Test and Deploy
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_DB: roomctrl_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: pdo, pdo_pgsql, intl
-          coverage: xdebug
-      
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
-      
-      - name: Run PHPUnit tests
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/roomctrl_test
-          APP_ENV: test
-        run: |
-          php bin/console doctrine:database:create --if-not-exists --env=test
-          php bin/console doctrine:migrations:migrate --no-interaction --env=test
-          composer test
-      
-      - name: Run PHP CodeSniffer
-        run: composer phpcs
-      
-      - name: Generate coverage report
-        run: composer test:coverage
-      
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage/clover.xml
-          fail_ci_if_error: true
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Build Docker image
-        run: docker build --target production -t roomctrl-api:${{ github.sha }} .
-      
-      - name: Push to registry
-        run: |
-          echo ${{ secrets.DOCKER_PASSWORD }} | docker login registry.example.com -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-          docker tag roomctrl-api:${{ github.sha }} registry.example.com/roomctrl-api:latest
-          docker tag roomctrl-api:${{ github.sha }} registry.example.com/roomctrl-api:${{ github.sha }}
-          docker push registry.example.com/roomctrl-api:latest
-          docker push registry.example.com/roomctrl-api:${{ github.sha }}
-      
-      - name: Deploy to production
-        run: |
-          ssh user@production-server "
-            cd /opt/roomctrl-api &&
-            docker-compose -f docker-compose.prod.yml pull &&
-            docker-compose -f docker-compose.prod.yml up -d &&
-            docker-compose -f docker-compose.prod.yml exec -T app php bin/console doctrine:migrations:migrate --no-interaction
-          "
-```
-
-**Pipeline składa się z:**
-1. **Test job** - uruchamia testy, code sniffer i generuje coverage
-2. **Build job** - buduje i deployuje tylko jeśli testy przejdą
-
-**Dla GitLab CI/CD:**
-
-```yaml
-stages:
-  - test
-  - build
-  - deploy
-
-variables:
-  POSTGRES_DB: roomctrl_test
-  POSTGRES_USER: test
-  POSTGRES_PASSWORD: test
-  DATABASE_URL: postgresql://test:test@postgres:5432/roomctrl_test
-
-test:
-  stage: test
-  image: php:8.4-cli
-  services:
-    - postgres:18-alpine
-  before_script:
-    - apt-get update && apt-get install -y libpq-dev git unzip
-    - docker-php-ext-install pdo pdo_pgsql
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-    - composer install --prefer-dist --no-progress
-  script:
-    - php bin/console doctrine:database:create --if-not-exists --env=test
-    - php bin/console doctrine:migrations:migrate --no-interaction --env=test
-    - composer test
-    - composer phpcs
-  coverage: '/Lines:\s*(\d+\.\d+)%/'
-  artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura.xml
-
-build:
-  stage: build
-  image: docker:latest
-  services:
-    - docker:dind
-  only:
-    - main
-  script:
-    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-
-deploy:
-  stage: deploy
-  only:
-    - main
-  script:
-    - ssh user@production-server "cd /opt/roomctrl-api && docker-compose -f docker-compose.prod.yml pull && docker-compose -f docker-compose.prod.yml up -d"
 ```
 
 ---
@@ -874,24 +705,25 @@ deploy:
 ## Podsumowanie
 
 Docker setup dla RoomCtrl API zapewnia:
-- ✅ Łatwą konfigurację development i production
-- ✅ Izolację środowisk
-- ✅ Replikowalność
-- ✅ Szybki onboarding dla nowych deweloperów
-- ✅ Consistent environment między dev, staging i prod
-- ✅ Łatwe skalowanie (dodanie np. Redis, Elasticsearch)
+- Łatwą konfigurację development i production
+- Izolację środowisk
+- Replikowalność
+- Szybki onboarding dla nowych deweloperów
+- Consistent environment między dev, staging i prod
+- Łatwe skalowanie (dodanie np. Redis, Elasticsearch)
 
 **Quick reference:**
 ```bash
 # Development
-./docker-setup.sh                          # Automatyczny setup
-docker-compose up -d                       # Start
-docker-compose logs -f app                 # Logi
-docker-compose exec app php bin/console    # Symfony CLI
-docker-compose down                        # Stop
+./start-dev.sh                             # Automatyczny setup
+docker compose up -d                       # Start
+docker compose logs -f php                 # Logi
+docker compose exec php php bin/console    # Symfony CLI
+docker compose down                        # Stop
 
 # Production  
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
-docker-compose -f docker-compose.prod.yml logs -f app
+./start-prod.sh                                          # Automatyczny setup
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml logs -f php
 ```

@@ -39,7 +39,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 🔐 Authentication (Auth)
+## Authentication (Auth)
 
 ### POST /api/login_check
 **Logowanie i otrzymanie tokena JWT**
@@ -143,16 +143,22 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 {
   "code": 400,
   "message": "Validation failed",
-  "errors": {
-    "password": "Password must contain at least one uppercase letter and one number",
-    "email": "This email is already in use"
-  }
+  "violations": [
+    {
+      "field": "password",
+      "message": "Password must contain at least one uppercase letter and one number"
+    },
+    {
+      "field": "email",
+      "message": "This email is already in use"
+    }
+  ]
 }
 ```
 
 ---
 
-## 👤 Users
+## Users
 
 ### GET /api/users
 **Lista wszystkich użytkowników**
@@ -371,7 +377,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 🏢 Organizations
+## Organizations
 
 ### GET /api/organizations
 **Lista wszystkich organizacji**
@@ -481,7 +487,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 🏠 Rooms
+## Rooms
 
 ### GET /api/rooms
 **Lista wszystkich sal**
@@ -778,12 +784,14 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 📅 Bookings
+## Bookings
 
 ### GET /api/bookings
 **Lista wszystkich rezerwacji**
 
-**Auth:** JWT
+**Auth:** JWT  
+**Query params:**
+- `myBookings` (boolean, optional) - Filtruj tylko rezerwacje utworzone przez zalogowanego użytkownika
 
 **Response 200:**
 ```json
@@ -884,35 +892,36 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 ---
 
 ### POST /api/bookings/recurring
-**Utworzenie cyklicznej rezerwacji**
+**Utworzenie cyklicznych rezerwacji (sprzątanie/konserwacja)**
 
-**Auth:** JWT
+**Auth:** ROLE_ADMIN
 
 **Request:**
 ```json
 {
-  "title": "Weekly Standup",
   "roomId": "019afaf8-7edc-7935-9afc-d94a15e0e7ed",
-  "startedAt": "2026-01-06T09:00:00+00:00",
-  "endedAt": "2026-01-06T09:30:00+00:00",
-  "participantsCount": 8,
-  "recurrenceType": "weekly",
-  "recurrenceEndDate": "2026-03-31",
-  "isPrivate": false
+  "type": "cleaning",
+  "startTime": "08:00",
+  "endTime": "09:00",
+  "daysOfWeek": [1, 3, 5],
+  "weeksAhead": 12
 }
 ```
 
-**recurrenceType values:**
-- `daily` - Codziennie
-- `weekly` - Co tydzień
-- `monthly` - Co miesiąc
+**type values:**
+- `cleaning` - Sprzątanie
+- `maintenance` - Konserwacja
+
+**daysOfWeek:** Tablica liczb 1-7 (1=poniedziałek, 7=niedziela)
 
 **Response 201:**
 ```json
 {
-  "code": 201,
-  "message": "Recurring bookings created successfully",
-  "bookingsCreated": 12
+  "createdCount": 36,
+  "bookingIds": [
+    "019afaf8-7edc-7935-9afc-d94a15e0e7ed"
+  ],
+  "message": "Successfully created 36 recurring bookings"
 }
 ```
 
@@ -959,32 +968,11 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 }
 ```
 
----
-
-### GET /api/bookings/my
-**Moje rezerwacje**
-
-**Auth:** JWT
-
-**Response 200:**
-```json
-[
-  {
-    "id": "019afaf8-7edc-7935-9afc-d94a15e0e7ed",
-    "title": "My Meeting",
-    "startedAt": "2026-01-10T10:00:00+00:00",
-    "endedAt": "2026-01-10T11:00:00+00:00",
-    "status": "active",
-    "room": {
-      "roomName": "Sala 201"
-    }
-  }
-]
-```
+**Uwaga:** Aby pobrać tylko swoje rezerwacje, użyj `GET /api/bookings?myBookings=true`
 
 ---
 
-## 🔧 Issues (Usterki)
+## Issues (Usterki)
 
 ### GET /api/issues
 **Lista wszystkich usterek**
@@ -1167,7 +1155,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 📧 Mail
+## Mail
 
 ### POST /api/send_mail
 **Wysyłka dowolnego emaila**
@@ -1218,7 +1206,7 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 
 ---
 
-## 📥 Download
+## Download
 
 ### GET /api/download/android/{version}
 **Pobierz aplikację Android**
@@ -1261,10 +1249,16 @@ Pełna dokumentacja OpenAPI 3.0 z możliwością testowania endpointów.
 {
   "code": 400,
   "message": "Validation failed",
-  "errors": {
-    "fieldName": "Error message for this field",
-    "anotherField": "Another error message"
-  }
+  "violations": [
+    {
+      "field": "fieldName",
+      "message": "Error message for this field"
+    },
+    {
+      "field": "anotherField",
+      "message": "Another error message"
+    }
+  ]
 }
 ```
 

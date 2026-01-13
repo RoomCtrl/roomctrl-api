@@ -12,7 +12,6 @@
 8. [Testowanie i rozwój](08-development.md)
 9. [Docker](09-docker.md)
 10. [Automatyczna aktualizacja statusów rezerwacji](10-booking-status-update.md)
-11. [Testowanie aktualizacji statusów](11-booking-status-update-testing.md)
 
 ## Wprowadzenie
 
@@ -30,14 +29,14 @@ RoomCtrl API to REST API zbudowane w oparciu o Symfony 7.4 i PHP 8.4, służące
 
 ### Główne funkcjonalności
 
-- 🔐 System uwierzytelniania JWT z rolami
-- 🏢 Zarządzanie organizacjami i użytkownikami
-- 🏠 Katalog sal konferencyjnych z wyposażeniem
-- 📅 Rezerwacje sal z powiadomieniami
-- 🔧 System zgłaszania i śledzenia usterek
-- 📧 System powiadomień email
-- 📄 Upload i zarządzanie plikami
-- 🔍 Filtrowanie i wyszukiwanie zasobów
+- System uwierzytelniania JWT z rolami
+- Zarządzanie organizacjami i użytkownikami
+- Katalog sal konferencyjnych z wyposażeniem
+- Rezerwacje sal z powiadomieniami
+- System zgłaszania i śledzenia usterek
+- System powiadomień email
+- Upload i zarządzanie plikami
+- Filtrowanie i wyszukiwanie zasobów
 
 ### Struktura dokumentacji
 

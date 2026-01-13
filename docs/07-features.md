@@ -4,7 +4,7 @@
 
 Projekt wykorzystuje architekturę feature-based, gdzie każdy moduł reprezentuje kompletną funkcjonalność biznesową.
 
-## 1. 🔐 Auth (Uwierzytelnianie)
+## 1. Auth (Uwierzytelnianie)
 
 **Lokalizacja:** `src/Feature/Auth/`
 
@@ -72,7 +72,7 @@ Event listener sprawdzający poprawność danych uwierzytelniających przed proc
 
 ---
 
-## 2. 👤 User (Użytkownicy)
+## 2. User (Użytkownicy)
 
 **Lokalizacja:** `src/Feature/User/`
 
@@ -156,7 +156,7 @@ public function checkPreAuth(UserInterface $user): void
 
 ---
 
-## 3. 🏢 Organization (Organizacje)
+## 3. Organization (Organizacje)
 
 **Lokalizacja:** `src/Feature/Organization/`
 
@@ -217,7 +217,7 @@ public function createOrganization(CreateOrganizationDTO $dto): Organization
 
 ---
 
-## 4. 🏠 Room (Sale konferencyjne)
+## 4. Room (Sale konferencyjne)
 
 **Lokalizacja:** `src/Feature/Room/`
 
@@ -353,13 +353,14 @@ public/
 
 ---
 
-## 5. 📅 Booking (Rezerwacje)
+## 5. Booking (Rezerwacje)
 
 **Lokalizacja:** `src/Feature/Booking/`
 
 ### Odpowiedzialność
 - Zarządzanie rezerwacjami sal
-- Tworzenie pojedynczych i cyklicznych rezerwacji
+- Tworzenie pojedynczych rezerwacji
+- Tworzenie cyklicznych rezerwacji (sprzątanie/konserwacja)
 - Sprawdzanie dostępności sal
 - Powiadomienia email o rezerwacjach
 - Zarządzanie uczestnikami rezerwacji
@@ -387,13 +388,12 @@ Booking/
 ### Kluczowe funkcje
 
 #### BookingController
-- `GET /api/bookings` - Lista wszystkich rezerwacji
+- `GET /api/bookings` - Lista wszystkich rezerwacji (query param: ?myBookings=true dla własnych)
 - `GET /api/bookings/{id}` - Szczegóły rezerwacji
 - `POST /api/bookings` - Utworzenie rezerwacji
-- `POST /api/bookings/recurring` - Utworzenie cyklicznej rezerwacji
+- `POST /api/bookings/recurring` - Utworzenie cyklicznych rezerwacji sprzątania/konserwacji (ADMIN)
 - `PATCH /api/bookings/{id}` - Aktualizacja rezerwacji (tylko twórca)
 - `DELETE /api/bookings/{id}` - Anulowanie rezerwacji (tylko twórca lub admin)
-- `GET /api/bookings/my` - Moje rezerwacje
 
 #### BookingService
 ```php
@@ -431,25 +431,46 @@ public function createBooking(CreateBookingDTO $dto, User $user): Booking
 }
 
 public function createRecurringBooking(
-    CreateRecurringBookingDTO $dto,
-    User $user
-): array
+    Room $room,
+    User $user,
+    string $type,
+    string $startTime,
+    string $endTime,
+    array $daysOfWeek,
+    int $weeksAhead
+): RecurringBookingResultDTO
 {
     $bookings = [];
-    $currentDate = new DateTimeImmutable($dto->startedAt);
-    $endDate = new DateTimeImmutable($dto->recurrenceEndDate);
+    $now = new DateTimeImmutable();
     
-    while ($currentDate <= $endDate) {
-        // Tworzenie pojedynczej rezerwacji
-        $bookingDTO = $this->createSingleBookingDTO($dto, $currentDate);
-        $booking = $this->createBooking($bookingDTO, $user);
-        $bookings[] = $booking;
-        
-        // Przesunięcie daty
-        $currentDate = $this->getNextOccurrence($currentDate, $dto->recurrenceType);
+    // Tytuł na podstawie typu
+    $title = $type === 'cleaning' ? 'Sprzątanie' : 'Konserwacja';
+    
+    // Tworzenie rezerwacji dla każdego dnia tygodnia przez określoną liczbę tygodni
+    for ($week = 0; $week < $weeksAhead; $week++) {
+        foreach ($daysOfWeek as $dayOfWeek) {
+            $date = $this->calculateDate($now, $week, $dayOfWeek);
+            $startedAt = $date->modify($startTime);
+            $endedAt = $date->modify($endTime);
+            
+            // Sprawdzenie dostępności
+            if ($this->isRoomAvailable($room->getId(), $startedAt, $endedAt)) {
+                $booking = $this->createSingleBooking(
+                    $room,
+                    $user,
+                    $title,
+                    $startedAt,
+                    $endedAt
+                );
+                $bookings[] = $booking;
+            }
+        }
     }
     
-    return $bookings;
+    return new RecurringBookingResultDTO(
+        count($bookings),
+        array_map(fn($b) => $b->getId()->toRfc4122(), $bookings)
+    );
 }
 
 private function isRoomAvailable(
@@ -519,7 +540,7 @@ Znajduje wszystkie rezerwacje ze statusem `active`, których `endedAt < now` i z
 
 ---
 
-## 6. 🔧 Issue (Usterki)
+## 6. Issue (Usterki)
 
 **Lokalizacja:** `src/Feature/Issue/`
 
@@ -657,7 +678,7 @@ private function recordHistory(
 
 ---
 
-## 7. 📧 Mail (Powiadomienia)
+## 7. Mail (Powiadomienia)
 
 **Lokalizacja:** `src/Feature/Mail/`
 
@@ -784,7 +805,7 @@ Wszystkie szablony znajdują się w `templates/emails/`:
 
 ---
 
-## 8. 📥 Download (Pobieranie plików)
+## 8. Download (Pobieranie plików)
 
 **Lokalizacja:** `src/Feature/Download/`
 

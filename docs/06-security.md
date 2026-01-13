@@ -332,7 +332,7 @@ class UserService
 | `/api/contact_mail` | POST | PUBLIC_ACCESS | - |
 | `/api/download/*` | GET | PUBLIC_ACCESS | - |
 
-## Izolacja organizacji (Multi-tenancy)
+## Izolacja organizacji
 
 System implementuje izolację danych na poziomie organizacji:
 
@@ -432,10 +432,10 @@ if ($user->getResetTokenExpiresAt() < new DateTimeImmutable()) {
 
 ### 1. Nigdy nie loguj tokenów JWT
 ```php
-// ❌ ZŁE
+// ZŁE
 $this->logger->info('User token: ' . $jwt);
 
-// ✅ DOBRE
+// DOBRE
 $this->logger->info('User authenticated', ['userId' => $user->getId()]);
 ```
 
@@ -459,10 +459,10 @@ class CreateUserDTO
 
 ### 3. Użyj prepared statements (Doctrine ORM robi to automatycznie)
 ```php
-// ✅ DOBRE - Doctrine używa prepared statements
+// DOBRE - Doctrine używa prepared statements
 $user = $this->userRepository->findOneBy(['username' => $username]);
 
-// ✅ DOBRE - QueryBuilder używa parametrów
+// DOBRE - QueryBuilder używa parametrów
 $query = $this->createQueryBuilder('u')
     ->where('u.username = :username')
     ->setParameter('username', $username)
@@ -494,13 +494,6 @@ framework:
         cookie_samesite: 'lax'
 ```
 
-## Rate Limiting
-
-Aktualnie projekt nie implementuje rate limiting. Zalecane jest dodanie tego na poziomie:
-- Reverse proxy (nginx)
-- API Gateway
-- Bundle Symfony (np. symfony/rate-limiter)
-
 ## Audyt bezpieczeństwa
 
 ### Zalecane narzędzia
@@ -523,11 +516,11 @@ composer phpcs
 ## Podsumowanie
 
 RoomCtrl API implementuje wielowarstwowy model bezpieczeństwa:
-- ✅ JWT authentication
-- ✅ Role-based access control (RBAC)
-- ✅ Organization isolation (multi-tenancy)
-- ✅ Password hashing
-- ✅ Input validation
-- ✅ CORS protection
-- ✅ Secure password reset
-- ✅ User checker dla aktywności konta
+- JWT authentication
+- Role-based access control (RBAC)
+- Organization isolation (multi-tenancy)
+- Password hashing
+- Input validation
+- CORS protection
+- Secure password reset
+- User checker dla aktywnoci konta
